@@ -7,7 +7,7 @@ import * as display from './views/display.js';
 export const state = { me: null, meta: null };
 
 const ROUTES = [
-  ['/', pub.home],
+  ['/', cal.calendar],
   ['/calendar', cal.calendar],
   ['/event/:id', pub.eventDetail],
   ['/archive', pub.archive],
@@ -84,8 +84,7 @@ function chrome(path) {
     </a>
     <button class="btn plain menu-btn" id="menuBtn" aria-label="Menu" aria-expanded="false">${icon.menu}</button>
     <nav class="nav" id="nav" aria-label="Main">
-      <a href="#/" class="${on('/')}">What’s on</a>
-      <a href="#/calendar" class="${on('/calendar')}">Calendar</a>
+      <a href="#/" class="${path === '/' || path.startsWith('/calendar') ? 'on' : ''}">Calendar</a>
       <a href="#/archive" class="${on('/archive')}">Archive</a>
       <button type="button" class="nav-signout" data-logout>Sign out</button>
     </nav>
@@ -106,8 +105,8 @@ function footer() {
         <p class="motto">Integrity · Knowledge · Diligence · Innovativeness · Professionalism</p>
         <p class="small">The official source for events at the University of Zimbabwe, Mount Pleasant, Harare.</p>
       </div>
-      <div><h2>Find events</h2><a href="#/">What’s on</a><a href="#/calendar">Calendar</a><a href="#/archive">Archive</a><a href="/api/calendar.ics">Calendar feed (.ics)</a></div>
-      ${state.me && !can('organiser') ? html`<div><h2>Your account</h2><a href="#/me">My events</a><a href="#/calendar">Calendar</a></div>` : state.me ? html`<div><h2>Your workspace</h2><a href="#/work">Workspace</a><a href="#/work/events/new">Submit an event</a><a href="#/work/messages/new">Request a welcome message</a></div>` : html`<div><h2>University</h2><a href="https://www.uz.ac.zw/" rel="noopener">University website</a><a href="https://www.uz.ac.zw/index.php/news-events" rel="noopener">University news</a></div>`}
+      <div><h2>Find events</h2><a href="#/">Calendar</a><a href="#/archive">Archive</a><a href="/api/calendar.ics">Calendar feed (.ics)</a></div>
+      ${state.me && !can('organiser') ? html`<div><h2>Your account</h2><a href="#/me">My events</a><a href="#/">Calendar</a></div>` : state.me ? html`<div><h2>Your workspace</h2><a href="#/work">Workspace</a><a href="#/work/events/new">Submit an event</a><a href="#/work/messages/new">Request a welcome message</a></div>` : html`<div><h2>University</h2><a href="https://www.uz.ac.zw/" rel="noopener">University website</a><a href="https://www.uz.ac.zw/index.php/news-events" rel="noopener">University news</a></div>`}
       <div><h2>Contact</h2><p class="small">Events Office, Registrar’s Department<br>630 Churchill Avenue, Mount Pleasant, Harare</p><a href="https://www.uz.ac.zw/" rel="noopener">www.uz.ac.zw</a></div>
     </div>
     <div class="base"><div class="wrap"><span>© ${state.meta.now.slice(0, 4)} University of Zimbabwe</span><span>Events Office · Registrar’s Department</span></div></div>
@@ -136,13 +135,14 @@ async function render() {
     if (window.__cleanup) { window.__cleanup(); window.__cleanup = null; }
     document.body.classList.remove('bare');
     top.innerHTML = String(chrome(path)); foot.innerHTML = String(footer());
-    el.innerHTML = String(html`<div class="wrap">${empty('search', 'Page not found', 'The page you were looking for doesn’t exist or has moved.', html`<a class="btn" href="#/">Back to What’s on</a>`, 1)}</div>`);
+    el.innerHTML = String(html`<div class="wrap">${empty('search', 'Page not found', 'The page you were looking for doesn’t exist or has moved.', html`<a class="btn" href="#/">Back to the calendar</a>`, 1)}</div>`);
     wireChrome();
     return;
   }
   document.body.classList.toggle('bare', !!route.bare);
   top.innerHTML = route.bare ? '' : String(chrome(path));
-  foot.innerHTML = route.bare || path.startsWith('/work') || !state.me ? '' : String(footer());
+  // No footer on the calendar, so it fits the screen without scrolling.
+  foot.innerHTML = route.bare || path.startsWith('/work') || !state.me || route.view === cal.calendar ? '' : String(footer());
   if (window.__cleanup) { window.__cleanup(); window.__cleanup = null; }
   el.innerHTML = skeleton(path.startsWith('/work') ? 'work' : route.bare ? 'display' : 'page');
   try {

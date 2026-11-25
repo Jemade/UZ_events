@@ -1,5 +1,5 @@
 import { html, raw, api, D, icon, toast, ask, pill, tag, qs, initials, STATUS_LABEL, empty, compressImage } from '../util.js';
-import { ico, categoryArt, campusArt } from '../art.js';
+import { ico, categoryArt } from '../art.js';
 import { state, go, can, today, render } from '../app.js';
 
 const put = (el, tpl) => { el.innerHTML = String(tpl); };
@@ -30,7 +30,7 @@ async function layout(el, path, content) {
       ${a('/work/messages', 'chat', 'Welcome messages')}
       ${a('/work/screens', 'screen', 'Lobby screens')}
       ${can('approver') ? html`<h2>Approvals</h2>${a('/work/review', 'inbox', 'Review queue', c.review)}${a('/work/manage', 'cal', 'Published events')}` : ''}
-      ${can('admin') ? html`<h2>Administration</h2>${a('/work/users', 'shield', 'Users and roles', c.waiting)}${a('/work/venues', 'pin', 'Venues')}${a('/work/site', 'image', 'Site photos')}${a('/work/audit', 'file', 'Audit log')}${a('/work/backups', 'db', 'Backups')}` : ''}
+      ${can('admin') ? html`<h2>Administration</h2>${a('/work/users', 'shield', 'Users and roles', c.waiting)}${a('/work/venues', 'pin', 'Venues')}${a('/work/site', 'link', 'Site address')}${a('/work/audit', 'file', 'Audit log')}${a('/work/backups', 'db', 'Backups')}` : ''}
     </nav>
     <div class="main" id="main">${content}</div>
     <nav class="bottombar" aria-label="Workspace shortcuts">
@@ -676,18 +676,24 @@ export async function users({ el, path }) {
 
 // ---------------- VENUES ----------------
 export async function venues({ el, path }) {
+  const { loadMap } = await import('./campusmap.js');
+  const map = await loadMap();
+  const placeName = id => (map.places.find(p => p.id === id) || {}).name;
+  const placeSel = (value = '') => html`<select class="input" name="mapPlace"><option value="">Not on the map</option>${map.places.map(p => html`<option value="${p.id}" ${p.id === value ? raw('selected') : ''}>${p.name}</option>`)}</select>`;
   const main = await layout(el, path, html`
-    ${head('Venues', 'Venues are used for bookings and clash detection.')}
-    <div class="panel table-wrap"><table class="t"><thead><tr><th>Venue</th><th>Location</th><th style="text-align:right">Capacity</th><th></th></tr></thead><tbody>
-    ${state.meta.venues.map(v => html`<tr><td class="title"><b>${v.name}</b></td><td class="small">${v.location}</td><td style="text-align:right">${v.capacity.toLocaleString('en-GB')}</td><td><div class="acts"><a class="btn ghost sm" href="#/calendar?view=week&venue=${v.id}">Bookings</a><button class="btn ghost sm" data-id="${v.id}">Edit</button></div></td></tr>`)}
+    ${head('Venues', 'Venues are used for bookings, clash detection and the walking directions on each event.')}
+    <div class="panel table-wrap"><table class="t"><thead><tr><th>Venue</th><th>Location</th><th>On the campus map</th><th style="text-align:right">Capacity</th><th></th></tr></thead><tbody>
+    ${state.meta.venues.map(v => html`<tr><td class="title"><b>${v.name}</b></td><td class="small">${v.location}</td><td class="small">${placeName(v.mapPlace) || html`<span class="muted">Not on the map</span>`}</td><td style="text-align:right">${v.capacity.toLocaleString('en-GB')}</td><td><div class="acts"><a class="btn ghost sm" href="#/calendar?view=week&venue=${v.id}">Bookings</a><button class="btn ghost sm" data-id="${v.id}">Edit</button></div></td></tr>`)}
     </tbody></table></div>
     <section class="panel"><header><h2>Add a venue</h2></header>
       <form class="pad" id="nv"><div class="row">
         <label class="field"><span>Name</span><input class="input" name="name" required></label>
         <label class="field"><span>Location</span><input class="input" name="location"></label>
         <label class="field"><span>Capacity</span><input class="input" name="capacity" type="number" min="0"></label>
+        <label class="field"><span>Building on the campus map</span>${placeSel()}</label>
       </div><button class="btn">${icon.plus} Add venue</button></form>
-    </section>`);
+    </section>
+    <p class="small muted">${map.attribution}</p>`);
   const done = async msg => { const { refreshMeta } = await import('../app.js'); await refreshMeta(); toast(msg); rerender(); };
   main.querySelector('#nv').onsubmit = async ev => {
     ev.preventDefault();
@@ -697,9 +703,25 @@ export async function venues({ el, path }) {
     const b = ev.target.closest('button[data-id]');
     if (!b) return;
     const v = state.meta.venues.find(x => x.id === b.dataset.id);
-    const r = await ask({ title: 'Edit venue', confirm: 'Save', fields: [{ name: 'name', label: 'Name', value: v.name, required: true }, { name: 'location', label: 'Location', value: v.location }, { name: 'capacity', label: 'Capacity', type: 'number', value: String(v.capacity) }] });
-    if (!r) return;
-    try { await api('/api/venues/' + v.id, { method: 'PUT', body: r }); done('Venue updated.'); } catch (err) { toast(err.message, true); }
+    const dlg = document.createElement('dialog');
+    dlg.setAttribute('aria-label', 'Edit venue');
+    dlg.innerHTML = String(html`<form method="dialog">
+      <h2>Edit venue</h2>
+      <label class="field"><span>Name</span><input class="input" name="name" value="${v.name}" required></label>
+      <label class="field"><span>Location</span><input class="input" name="location" value="${v.location}"></label>
+      <label class="field"><span>Capacity</span><input class="input" name="capacity" type="number" min="0" value="${String(v.capacity)}"></label>
+      <label class="field"><span>Building on the campus map</span>${placeSel(v.mapPlace || '')}<small>Events here show a walking route to this building.</small></label>
+      <div class="form-actions"><button class="btn ghost" value="cancel" formnovalidate>Cancel</button><button class="btn" value="ok">Save</button></div>
+    </form>`);
+    document.body.appendChild(dlg);
+    dlg.addEventListener('close', async () => {
+      const body = Object.fromEntries(new FormData(dlg.querySelector('form')));
+      const ok = dlg.returnValue === 'ok';
+      dlg.remove();
+      if (!ok) return;
+      try { await api('/api/venues/' + v.id, { method: 'PUT', body }); done('Venue updated.'); } catch (err) { toast(err.message, true); }
+    });
+    dlg.showModal();
   };
 }
 
@@ -750,26 +772,14 @@ export async function backups({ el, path }) {
 // ---------------- SITE PHOTOS (admin) ----------------
 export async function sitePhotos({ el, path }) {
   const st = state.meta.settings || {};
-  // The home page photo. Events carry their own cover photos. Use only photography the university has the right to publish.
-  const PAGES = [
-    ['hero', 'Home page', 'Beside the headline on What’s on. Landscape, at least 1600px wide.'],
-  ];
   const main = await layout(el, path, html`
-    ${head('Site photos and address', 'The home page photo. Events have their own cover photos. Use only approved UZ photography that the university has the right to publish.')}
+    ${head('Site address', 'The web address printed in the QR codes on lobby screens.')}
     <form id="sf">
-      <div class="settings-grid">
-        ${PAGES.map(([k, title, help]) => html`<section class="panel"><header><h2>${title}</h2></header><div class="pad">
-          ${photoField({ name: k + 'Image', value: st[k + 'Image'], label: `${title} photo`, help, fallback: campusArt() })}
-          <label class="field"><span>Describe the photo</span><input class="input" name="${k}Alt" maxlength="140" value="${st[k + 'Alt'] || ''}" placeholder="e.g. The Great Hall at sunrise"></label>
-          ${k === 'hero' ? html`<label class="field"><span>Caption</span><input class="input" name="heroCaption" maxlength="140" value="${st.heroCaption || ''}" placeholder="e.g. The Great Hall, Mount Pleasant campus"></label>` : ''}
-        </div></section>`)}
-      </div>
       <section class="panel"><header><h2>Public web address</h2></header><div class="pad">
         <label class="field"><span>Address used in QR codes on lobby screens</span><input class="input" name="publicUrl" value="${st.publicUrl || ''}" placeholder="https://events.uz.ac.zw"><small>Leave empty to use the address the screen was opened with (${location.origin}).</small></label>
       </div></section>
-      <button class="btn">${ico('check')} Save site settings</button>
+      <button class="btn">${ico('check')} Save</button>
     </form>`);
-  wirePhotos(main);
   main.querySelector('#sf').onsubmit = async ev => {
     ev.preventDefault();
     try {

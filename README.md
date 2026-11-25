@@ -22,7 +22,7 @@ Built by Jayden Mapasure and Nyasha Madoro.
 
 The student email check confirms that the email and the registration number belong together. It does not yet send a code to the inbox, because email delivery is not connected (see the outbox under Workspace).
 
-A new installation starts with UZ's departments, venues and lobby screens, the home page photo from `seed-photos/`, and one administrator. Staff and students then create their own accounts, and the administrator gives staff their roles under **Workspace → Users and roles** (or adds staff directly there).
+A new installation starts with UZ's departments, venues (pinned to their buildings on the campus map) and lobby screens, and one administrator. Staff and students then create their own accounts, and the administrator gives staff their roles under **Workspace → Users and roles** (or adds staff directly there).
 
 **Render's free plan has no permanent disk.** Every restart, redeploy, or sleep after 15 idle minutes starts the site afresh from the state above, and everything created is lost. For continued use, move to a paid instance, add a persistent disk mounted at `/var/data`, and set `DATA_DIR=/var/data`. Until then, use **Workspace → Backups → Download** to keep a copy.
 
@@ -35,6 +35,12 @@ A new installation starts with UZ's departments, venues and lobby screens, the h
 | `PORT`, `HOST` | Set automatically on Render |
 | `PUBLIC_URL` | Address used in QR codes and for secure cookies; defaults to Render's own address |
 | `DATA_DIR` | Where data, photos and backups are stored (default `./data`) |
+
+## Calendar and campus map
+
+After signing in, the calendar is the whole page: no search box or filters, and it fits the screen. Clicking an event opens its details in a window over the calendar, with **Getting there**: a campus map with the walking route to the venue's building, its distance and walking time, a choice of starting point (main entrance on Churchill Avenue, UZ bus terminal, Main Library) and a button that opens the same directions in Google Maps.
+
+The map is drawn from OpenStreetMap data (`public/assets/campus-map.json`, © OpenStreetMap contributors, ODbL), built by `tools/build-campus-map.mjs`. Administrators choose each venue's building under **Workspace → Venues**. Venues not on the map (Innovation Hub, Parirenyatwa Lecture Hall) show a Google Maps search link instead until a building is chosen.
 
 ## Run it locally
 

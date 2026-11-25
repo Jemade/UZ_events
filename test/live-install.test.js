@@ -1,4 +1,4 @@
-// A live (Render) installation: empty start, admin from settings, bundled photos, proxy-aware sign-in.
+// A live (Render) installation: empty start, admin from settings, campus map venues, proxy-aware sign-in.
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
@@ -19,11 +19,11 @@ test('a new live installation starts empty with one administrator and the bundle
   const meta = await (await fetch(base + '/api/meta')).json();
   assert.equal(meta.venues.length, 8);
   assert.equal(meta.departments.length, 12);
-  assert.match(meta.settings.heroImage, /^\/uploads\/[a-f0-9]{32}\.jpg$/);
-  assert.match(meta.settings.heroCaption, /Star FM/);
   assert.equal(meta.settings.publicUrl, 'https://uz-events.onrender.com', 'QR codes use the Render address');
-  assert.equal((await fetch(base + meta.settings.heroImage)).status, 200);
-  assert.deepEqual(Object.keys(meta.settings).filter(k => k.endsWith('Image')), ['heroImage'], 'only the home page has a site photo');
+  assert.equal(meta.venues.find(v => v.id === 'gh').mapPlace, 'w297130203', 'the Great Hall is on the campus map');
+  const map = await (await fetch(base + '/assets/campus-map.json')).json();
+  assert.ok(map.places.some(p => p.id === 'w297130203' && p.name === 'The Great Hall'));
+  assert.ok(map.starts.length >= 2 && map.graph.nodes.length > 500);
   assert.equal((await fetch(base + '/api/events')).status, 401, 'events need an account');
   // the sample accounts do not exist here
   assert.equal((await post('/api/login', { email: 'admin@uz.ac.zw', password: 'UZevents2026' })).status, 401);

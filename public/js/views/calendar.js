@@ -1,6 +1,6 @@
 import { html, raw, api, D, icon, qs, tag, empty } from '../util.js';
 import { state, go, today } from '../app.js';
-import { agenda, evRow } from './public.js';
+import { agenda, evRow, eventDialog } from './public.js';
 
 const VIEWS = [['day', 'Day'], ['week', 'Week'], ['month', 'Month'], ['year', 'Year'], ['list', 'List']];
 const H0 = 7, H1 = 22;
@@ -61,18 +61,11 @@ export async function calendar({ el, query, onCleanup }) {
         ${VIEWS.map(([k, label]) => html`<a href="${link({ view: k })}" class="${view === k ? 'on' : ''}" ${view === k ? raw('aria-current="page"') : ''}>${label}</a>`)}
       </div>
     </div>
-    <form class="cal-filters" id="filters">
-      <input class="input" name="q" type="search" placeholder="Search events, venues, faculties" value="${filters.q}" aria-label="Search">
-      <select class="input" name="dept" aria-label="Faculty or office"><option value="">All faculties and offices</option>${state.meta.departments.map(d => html`<option value="${d.id}" ${filters.dept === d.id ? raw('selected') : ''}>${d.name}</option>`)}</select>
-      <select class="input" name="cat" aria-label="Category"><option value="">All categories</option>${state.meta.categories.map(c => html`<option ${filters.cat === c ? raw('selected') : ''}>${c}</option>`)}</select>
-      <select class="input" name="venue" aria-label="Venue"><option value="">All venues</option>${state.meta.venues.map(v => html`<option value="${v.id}" ${filters.venue === v.id ? raw('selected') : ''}>${v.name}</option>`)}</select>
-      ${active ? html`<a class="btn ghost" href="#/calendar${qs({ view, date })}">Clear</a>` : html`<button class="btn">Apply</button>`}
-    </form>
+    ${active ? html`<p class="cal-only small">Showing only ${[filters.venue && (state.meta.venues.find(v => v.id === filters.venue) || {}).name, filters.dept && (state.meta.departments.find(d => d.id === filters.dept) || {}).short, filters.cat, filters.q && `“${filters.q}”`].filter(Boolean).join(', ')} · <a href="#/calendar${qs({ view, date })}">Show everything</a></p>` : ''}
     <nav class="daystrip" aria-label="Choose a day">${Array.from({ length: 21 }, (_, i) => {
       const d = D.addDays(stripFrom, i); const n = stripCounts.get(d) || 0; const pd = D.parse(d);
       return html`<a href="#/calendar${qs({ view: 'day', date: d, ...filters })}" class="${d === date && view === 'day' ? 'on' : ''} ${d === t ? 'today' : ''}" aria-label="${D.long(d)}, ${n} events"><span>${D.DAYS[pd.getUTCDay()].slice(0, 3)}</span><b>${pd.getUTCDate()}</b><i class="${n ? '' : 'none'}"></i></a>`;
     })}</nav>
-    <div class="legend" aria-label="Category key">${state.meta.categories.map(c => tag(c))}<span class="small muted" style="margin-left:auto">${events.length} event${events.length === 1 ? '' : 's'} shown</span></div>
     <div id="calbody">${body}</div>
     <p class="swipe-hint">Swipe left or right to move between ${view === 'list' ? 'months' : view + 's'}.</p>
   </div>`);
@@ -97,10 +90,14 @@ export async function calendar({ el, query, onCleanup }) {
     if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 1.5) go(link({ date: dx < 0 ? next : prev }));
   });
 
-  const form = el.querySelector('#filters');
-  const apply = () => go('#/calendar' + qs({ view, date, ...Object.fromEntries(new FormData(form)) }));
-  form.onsubmit = ev => { ev.preventDefault(); apply(); };
-  form.querySelectorAll('select').forEach(s => { s.onchange = apply; });
+  // Clicking an event opens its details and the way there, without leaving the calendar.
+  el.querySelector('#calbody').addEventListener('click', ev => {
+    const a = ev.target.closest('a[href^="#/event/"]');
+    if (!a || ev.ctrlKey || ev.metaKey || ev.shiftKey) return;
+    ev.preventDefault();
+    const [, id, q = ''] = a.getAttribute('href').match(/^#\/event\/([^?]+)\??(.*)$/);
+    eventDialog(decodeURIComponent(id), new URLSearchParams(q).get('on')).catch(err => console.error(err));
+  });
 }
 
 function month(events, gridStart, date, t) {

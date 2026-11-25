@@ -24,7 +24,7 @@ Use a supported Node.js LTS release. The application has no runtime packages to 
 - `host`: `127.0.0.1` behind a reverse proxy; bind to another interface only when the hosting network requires it.
 - `port`: the internal HTTP port, normally 3000.
 - `dataDir`: an absolute path on persistent storage, writable only by the service account.
-- `publicUrl`: the approved origin, for example `https://events.uz.ac.zw`, without a path, query or credentials. This overrides the address in Site photos and is used for display links/QR codes.
+- `publicUrl`: the approved origin, for example `https://events.uz.ac.zw`, without a path, query or credentials. This overrides the address in Site address and is used for display links/QR codes.
 - `secureCookies`: `true` behind TLS. An HTTPS public URL always enables Secure cookies, even if this option is false. Local HTTP development requires an HTTP URL and false.
 
 Environment variables override file settings: `CONFIG_FILE`, `HOST`, `PORT`, `DATA_DIR`, `PUBLIC_URL`, `SECURE_COOKIES` (`1` or `0`). An explicitly named missing config file fails startup. Relative data paths resolve from the process working directory. Do not commit local configuration.

@@ -156,7 +156,7 @@ test('public visitors and organisers can never reach the admin side', async () =
   assert.equal(me.data.user, null);
 });
 
-test('photo uploads are validated and attach to events, messages and site settings', async () => {
+test('photo uploads are validated and attach to events and messages; site settings hold the public address', async () => {
   const org = await login('organiser.eng@uz.ac.zw');
   const admin = await login('admin@uz.ac.zw');
   const anon = client();
@@ -174,10 +174,10 @@ test('photo uploads are validated and attach to events, messages and site settin
   const c = await org('POST', '/api/events', ev);
   assert.equal(c.data.event.coverImage, up.data.url);
   assert.equal((await org('POST', '/api/events', { ...ev, coverImage: '/uploads/../../etc/passwd' })).status, 400, 'arbitrary path refused');
-  assert.equal((await org('PUT', '/api/settings', { heroImage: up.data.url })).status, 403);
-  const s = await admin('PUT', '/api/settings', { heroImage: up.data.url, heroAlt: 'Campus', publicUrl: 'https://events.uz.ac.zw/' });
+  assert.equal((await org('PUT', '/api/settings', { publicUrl: 'https://x.example' })).status, 403);
+  const s = await admin('PUT', '/api/settings', { heroImage: up.data.url, publicUrl: 'https://events.uz.ac.zw/' });
   assert.equal(s.data.settings.publicUrl, 'https://events.uz.ac.zw');
-  assert.equal((await anon('GET', '/api/meta')).data.settings.heroImage, up.data.url);
+  assert.deepEqual(Object.keys((await anon('GET', '/api/meta')).data.settings), ['publicUrl'], 'no site photos');
   assert.equal((await fetch(base + '/uploads/../server.js')).status, 404);
 });
 
@@ -187,7 +187,7 @@ test('photo backups restore missing files and reject unsafe or incomplete bundle
   assert.equal(exported.version, 2);
   // pick a photo the data actually uses, so removing it from the bundle must be refused
   const d = exported.data;
-  const used = [d.settings.heroImage, ...d.events.map(e => e.coverImage), ...d.messages.map(m => m.photo)].filter(Boolean).map(u => u.slice(9));
+  const used = [...d.events.map(e => e.coverImage), ...d.messages.map(m => m.photo)].filter(Boolean).map(u => u.slice(9));
   const name = Object.keys(exported.uploads).find(n => used.includes(n));
   assert.ok(name, 'fixture has a photo in use');
   const encoded = exported.uploads[name];

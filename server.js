@@ -5,8 +5,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { Store } = require('./lib/store');
-const { seed, seedEmpty } = require('./lib/seed');
-const crypto = require('crypto');
+const { seed, seedEmpty, reference } = require('./lib/seed');
 const A = require('./lib/auth');
 const T = require('./lib/time');
 
@@ -21,45 +20,24 @@ const UPLOAD_RE = /^\/uploads\/[a-f0-9]{32}\.(jpg|png|webp)$/;
 const SECURE_COOKIES = config.secureCookies;
 
 const store = new Store(path.join(DATA_DIR, 'db.json'));
-let freshInstall = false;
-let db = store.load(() => { freshInstall = true; return config.seedMode === 'empty' ? seedEmpty(config) : seed(); });
-// Site photos: only where a photo belongs (the home page). Events carry their own cover photos.
-// Manifest key in seed-photos/photos.json -> settings prefix (<prefix>Image, <prefix>Alt).
-const PAGE_PHOTOS = { home: 'hero' };
-const PAGE_PHOTO_LABELS = { hero: 'Home page photo' };
-const DEFAULT_SETTINGS = { heroCaption: '', publicUrl: '', ...Object.fromEntries(Object.values(PAGE_PHOTOS).flatMap(k => [[k + 'Image', null], [k + 'Alt', '']])) };
-// Page photos an existing installation has never had (added in a later version); they are filled from seed-photos below.
-const missingPhotos = Object.keys(PAGE_PHOTOS).filter(k => !(PAGE_PHOTOS[k] + 'Image' in (db.settings || {})));
+let db = store.load(() => (config.seedMode === 'empty' ? seedEmpty(config) : seed()));
+// Site settings. Pages carry no site photos; each event has its own cover photo.
+const DEFAULT_SETTINGS = { publicUrl: '' };
 function ensureSettings() {
-  db.settings = { ...DEFAULT_SETTINGS, ...(db.settings || {}) };
+  db.settings = { ...DEFAULT_SETTINGS, publicUrl: (db.settings || {}).publicUrl || '' };
   if (config.publicUrl) db.settings.publicUrl = config.publicUrl;
   db.notifications ||= [];
   db.outbox ||= [];
 }
 ensureSettings();
-// A new installation gets the home and sign-in photos that ship with the code (seed-photos/).
-// They are copied into the uploads folder like any upload, so admins can replace them under Site photos.
-if (freshInstall) installBundledPhotos(Object.keys(PAGE_PHOTOS));
-else if (missingPhotos.length) installBundledPhotos(missingPhotos);
-function installBundledPhotos(only) {
-  const dir = path.join(__dirname, 'seed-photos');
-  const manifest = path.join(dir, 'photos.json');
-  if (!fs.existsSync(manifest)) return;
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-  const put = file => {
-    const bytes = fs.readFileSync(path.join(dir, path.basename(file)));
-    const name = crypto.createHash('md5').update(bytes).digest('hex') + '.jpg';
-    fs.writeFileSync(path.join(UPLOAD_DIR, name), bytes);
-    return '/uploads/' + name;
-  };
-  const m = JSON.parse(fs.readFileSync(manifest, 'utf8'));
-  for (const key of only) {
-    const entry = m[key], prefix = PAGE_PHOTOS[key];
-    if (!entry || !prefix) continue;
-    Object.assign(db.settings, { [prefix + 'Image']: put(entry.file), [prefix + 'Alt']: entry.alt || '' });
-    if (key === 'home') db.settings.heroCaption = entry.caption || '';
-  }
-  store.save();
+// Campus map places venues can be pinned to (built by tools/build-campus-map.mjs from OpenStreetMap).
+const MAP_PLACES = (() => { try { return new Set(JSON.parse(fs.readFileSync(path.join(PUBLIC_DIR, 'assets', 'campus-map.json'), 'utf8')).places.map(p => p.id)); } catch { return new Set(); } })();
+// Venues from before the campus map get their building from the standard list, if they have one.
+{
+  const ref = new Map(reference().venues.map(v => [v.id, v.mapPlace]));
+  let changed = false;
+  for (const v of db.venues) if (!('mapPlace' in v)) { v.mapPlace = ref.get(v.id) || null; changed = true; }
+  if (changed) store.save();
 }
 let saveTimer = null;
 function saveSoon() {
@@ -141,6 +119,7 @@ function str(v, field, { min = 0, max = 200, required = false } = {}) {
   if (v.length > max) throw bad(`${field} must be at most ${max} characters.`);
   return v;
 }
+const mapPlace = v => { const id = String(v || ''); if (!id) return null; if (!MAP_PLACES.has(id)) throw bad('Choose a building from the campus map list.'); return id; };
 const EMAIL = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
 
 // ---------- permissions ----------
@@ -202,7 +181,7 @@ function eventOut(e, u, extra = {}) {
   const o = {
     id: e.id, title: e.title, summary: e.summary, description: e.description, category: e.category,
     departmentId: e.departmentId, departmentName: dept ? dept.name : '', departmentShort: dept ? dept.short : '',
-    venueId: e.venueId, venueName: venue ? venue.name : '', venueLocation: venue ? venue.location : '',
+    venueId: e.venueId, venueName: venue ? venue.name : '', venueLocation: venue ? venue.location : '', venuePlace: venue ? venue.mapPlace || null : null,
     start: e.start, end: e.end, audience: e.audience, contactName: e.contactName, contactEmail: e.contactEmail,
     isPublic: e.isPublic, recurrence: e.recurrence, status: e.status, updatedAt: e.updatedAt,
     coverImage: e.coverImage || null, coverAlt: e.coverAlt || '',
@@ -819,7 +798,7 @@ route('POST', '/api/venues', ({ u, body }) => {
   const name = str(body.name, 'Venue name', { min: 2, max: 100, required: true });
   const capacity = Math.max(0, Math.min(100000, parseInt(body.capacity, 10) || 0));
   const location = str(body.location, 'Location', { max: 140 });
-  const v = { id: store.nextId('v'), name, capacity, location };
+  const v = { id: store.nextId('v'), name, capacity, location, mapPlace: mapPlace(body.mapPlace) };
   db.venues.push(v);
   audit(u, 'venue.created', v.id, name);
   store.save();
@@ -833,6 +812,7 @@ route('PUT', '/api/venues/:id', ({ u, p, body }) => {
   v.name = str(body.name, 'Venue name', { min: 2, max: 100, required: true });
   v.capacity = Math.max(0, Math.min(100000, parseInt(body.capacity, 10) || 0));
   v.location = str(body.location, 'Location', { max: 140 });
+  if (body.mapPlace !== undefined) v.mapPlace = mapPlace(body.mapPlace);
   audit(u, 'venue.updated', v.id, v.name);
   store.save();
   return { venue: v };
@@ -909,17 +889,12 @@ route('POST', '/api/uploads', ({ u, body }) => {
 route('PUT', '/api/settings', ({ u, body }) => {
   need(u, 'admin');
   const s = {
-    heroCaption: str(body.heroCaption, 'Home photo caption', { max: 140 }),
     publicUrl: str(body.publicUrl, 'Public address', { max: 200 }).replace(/\/+$/, ''),
   };
-  for (const [k, label] of Object.entries(PAGE_PHOTO_LABELS)) {
-    s[k + 'Image'] = image(body[k + 'Image'], label);
-    s[k + 'Alt'] = str(body[k + 'Alt'], label + ' description', { max: 140 });
-  }
   if (s.publicUrl && !/^https?:\/\/[^\s/]+(\/[^\s]*)?$/.test(s.publicUrl)) throw bad('Public address must start with http:// or https://');
   if (config.publicUrl) s.publicUrl = config.publicUrl;
   db.settings = s;
-  audit(u, 'settings.updated', 'site', Object.keys(s).filter(k => s[k]).join(', '));
+  audit(u, 'settings.updated', 'site', s.publicUrl || 'address cleared');
   store.save();
   return { settings: db.settings };
 });

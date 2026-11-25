@@ -1,6 +1,7 @@
 import { html, raw, api, D, icon, toast, tag, qs, empty } from '../util.js';
-import { ico, categoryArt, campusArt } from '../art.js';
+import { ico, categoryArt } from '../art.js';
 import { state, go, today, render, refreshMe, can } from '../app.js';
+import { venueMap } from './campusmap.js';
 
 const put = (el, tpl) => { el.innerHTML = String(tpl); };
 const evHref = e => `#/event/${e.id}${e.occurrence ? '?on=' + encodeURIComponent(e.start) : ''}`;
@@ -39,98 +40,6 @@ export function agenda(events, todayYmd) {
   })}</div>`;
 }
 
-// ---------------- HOME ----------------
-export async function home({ el }) {
-  const t = today();
-  const now = state.meta.now;
-  const st = state.meta.settings || {};
-  const { events } = await api('/api/events' + qs({ from: t, to: D.addDays(t, 60) }));
-  const upcoming = events.filter(e => e.end > now);
-  const todayOnly = upcoming.filter(e => e.start.slice(0, 10) <= t && e.end.slice(0, 10) >= t);
-  const showingNext = !todayOnly.length;
-  const strip = (showingNext ? upcoming.filter(e => e.status !== 'cancelled') : todayOnly).slice(0, 4);
-  const week = upcoming.filter(e => e.start.slice(0, 10) < D.addDays(t, 7));
-  const featured = upcoming.find(e => e.category === 'Ceremonial' && e.status === 'published') || upcoming.slice().sort((a, b) => (b.views || 0) - (a.views || 0))[0];
-  const deptCounts = state.meta.departments.map(d => ({ ...d, n: upcoming.filter(e => e.departmentId === d.id).length }))
-    .filter(d => d.n).sort((a, b) => b.n - a.n);
-  const weekCount = week.filter(e => e.status !== 'cancelled').length;
-
-  let countdown = '';
-  if (featured) {
-    const mins = Math.max(0, Math.round((Date.parse(featured.start + ':00Z') - Date.parse(now + ':00Z')) / 60000));
-    const dd = Math.floor(mins / 1440), hh = Math.floor((mins % 1440) / 60), mm = mins % 60;
-    countdown = html`<div class="right">
-      <div class="count"><b>${dd}</b><span>${dd === 1 ? 'Day' : 'Days'}</span></div>
-      <div class="count"><b>${hh}</b><span>Hours</span></div>
-      <div class="count"><b>${mm}</b><span>Minutes</span></div>
-      <div class="details"><span>When <b>${D.long(featured.start)}, ${D.time(featured.start)}</b></span><span>Where <b>${featured.venueName}</b></span></div>
-    </div>`;
-  }
-
-  put(el, html`
-  <section class="hero"><div class="wrap">
-    <div>
-      <div class="eyebrow">${D.long(now)}</div>
-      <h1>What’s on at the University of Zimbabwe</h1>
-      <p class="lede">Lectures, ceremonies, research days, sport and culture: every approved university event, in one place.</p>
-      <form class="search" id="search" role="search">
-        <label class="sr" for="q">Search events</label>
-        <input id="q" name="q" placeholder="Search by event, venue or faculty" autocomplete="off">
-        <button class="btn">${icon.search}<span>Search</span></button>
-      </form>
-      <div class="chips" aria-label="Browse by category">
-        ${state.meta.categories.map(c => html`<a class="chip" data-cat="${c}" href="#/calendar?view=list&cat=${encodeURIComponent(c)}">${c}</a>`)}
-      </div>
-    </div>
-    <figure class="hero-figure">
-      <div class="frame">${st.heroImage ? html`<img src="${st.heroImage}" alt="${st.heroAlt || 'University of Zimbabwe campus'}" fetchpriority="high">` : campusArt()}</div>
-      <div class="stamp"><b>${weekCount}</b><span>Events this week</span></div>
-      <figcaption>${st.heroImage ? (st.heroCaption || 'University of Zimbabwe, Mount Pleasant') : 'University of Zimbabwe, Mount Pleasant'}</figcaption>
-    </figure>
-  </div></section>
-
-  <section class="nextband" aria-labelledby="nextH"><div class="wrap">
-    <div class="lbl"><h2 id="nextH">${showingNext ? 'Coming up next' : 'Happening today'}</h2><a href="#/calendar?view=day&date=${t}">Day view →</a></div>
-    ${strip.length ? strip.map(e => {
-      const live = e.start <= now && e.end > now;
-      return html`<a class="nb" href="${evHref(e)}" data-cat="${e.category}">
-        <time>${showingNext ? `${D.short(e.start)} · ` : ''}${D.time(e.start)}${live ? html`<span class="now">ON NOW</span>` : ''}</time>
-        <b>${e.title}</b><span>${e.venueName}</span></a>`;
-    }) : html`<div class="nb muted">Nothing scheduled. <a href="#/calendar">Browse the calendar</a>.</div>`}
-  </div></section>
-
-  <section class="section"><div class="wrap">
-    <div class="section-head"><h2>The next seven days</h2><a href="#/calendar?view=week">Week view →</a></div>
-    ${week.length ? agenda(week, t) : html`<div class="agenda">${empty('cal', 'A quiet week', 'No public events are scheduled in the next seven days.', html`<a class="btn ghost" href="#/calendar">Open the calendar</a>`)}</div>`}
-  </div></section>
-
-  ${featured ? html`<section class="section"><div class="wrap">
-    <div class="feature">
-      <div class="left">
-        <div class="eyebrow">Coming up · ${featured.category}</div>
-        <h2>${featured.title}</h2>
-        <p>${featured.summary || ''}</p>
-        <a class="btn orange" href="#/event/${featured.id}">Event details</a>
-      </div>
-      ${countdown}
-    </div>
-  </div></section>` : ''}
-
-  ${deptCounts.length ? html`<section class="section"><div class="wrap">
-    <div class="section-head"><h2>Browse by faculty and office</h2><a href="#/calendar?view=list">All upcoming →</a></div>
-    <div class="dept-grid">
-      ${deptCounts.map(d => html`<a href="#/calendar?view=list&dept=${d.id}"><span>${d.name}<small>Next 60 days</small></span><span class="n">${d.n}</span></a>`)}
-    </div>
-  </div></section>` : ''}`);
-
-  el.querySelector('#search').onsubmit = ev => {
-    ev.preventDefault();
-    const q = el.querySelector('#q').value.trim();
-    go('#/calendar' + qs({ view: 'list', q }));
-  };
-}
-
-// ---------------- EVENT DETAIL ----------------
 const ACTION_TEXT = { amended: 'Details updated', rescheduled: 'Rescheduled', postponed: 'Postponed', cancelled: 'Cancelled', reinstated: 'Reinstated', created: 'Created', edited: 'Edited', submitted: 'Submitted for approval', approved: 'Approved and published', returned: 'Returned for revision', rejected: 'Rejected', withdrawn: 'Withdrawn' };
 
 export async function eventDetail({ el, params, query }) {
@@ -151,7 +60,7 @@ export async function eventDetail({ el, params, query }) {
 
   put(el, html`
   <div class="page-head"><div class="wrap">
-    <div class="crumbs"><a href="#/">What’s on</a> / <a href="#/calendar?date=${start.slice(0, 10)}">Calendar</a> / ${e.departmentShort}</div>
+    <div class="crumbs"><a href="#/calendar?date=${start.slice(0, 10)}">Calendar</a> / ${e.departmentShort}</div>
     <div class="eyebrow">${e.category} · ${e.departmentName}</div>
     <h1 style="margin-top:8px;max-width:26ch">${e.title}</h1>
   </div></div>
@@ -165,6 +74,7 @@ export async function eventDetail({ el, params, query }) {
       <figure class="cover">${photo(e)}</figure>
       ${e.summary ? html`<p class="lede">${e.summary}</p>` : ''}
       <div class="body">${(e.description || '').split(/\n{2,}/).map(p => html`<p>${p}</p>`)}</div>
+      <section class="getting-there"><h2>Getting there</h2><div class="map-box" id="map"></div></section>
       ${notes.length ? html`<hr class="rule"><h2 style="margin-bottom:16px;font-size:var(--fs-h3)">Updates</h2>
         <ul class="timeline">${notes.slice().reverse().map(h => html`<li><span class="when">${D.stamp(h.at)}</span><br><b>${ACTION_TEXT[h.action] || h.action}</b>${h.note ? html`: ${h.note}` : ''}</li>`)}</ul>` : ''}
       ${staff && e.createdByName ? html`<hr class="rule"><h2 style="margin-bottom:6px;font-size:var(--fs-h3)">Record</h2>
@@ -197,6 +107,7 @@ export async function eventDetail({ el, params, query }) {
     try { await navigator.clipboard.writeText(location.href); toast('Link copied to your clipboard.'); } catch { toast('Copy failed. Use the address bar instead.', true); }
   };
   el.querySelector('#print').onclick = () => window.print();
+  venueMap(el.querySelector('#map'), { placeId: e.venuePlace, venueName: e.venueName, venueLocation: e.venueLocation }).catch(() => {});
   const save = el.querySelector('#save');
   if (save) save.onclick = async () => {
     try {
@@ -206,6 +117,75 @@ export async function eventDetail({ el, params, query }) {
       render();
     } catch (x) { toast(x.message, true); }
   };
+}
+
+// ---------------- EVENT POP-UP (from the calendar) ----------------
+// Clicking an event on the calendar opens its details here, with the walking route to the venue.
+export async function eventDialog(id, on) {
+  const { event: e } = await api(`/api/events/${encodeURIComponent(id)}`);
+  let start = e.start, end = e.end;
+  if (on && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(on)) {
+    const dur = Date.parse(e.end + ':00Z') - Date.parse(e.start + ':00Z');
+    start = on; end = new Date(Date.parse(start + ':00Z') + dur).toISOString().slice(0, 16);
+  }
+  const live = ['published', 'postponed'].includes(e.status);
+  const isSaved = (state.me.saved || []).includes(e.id);
+  const lastNote = [...e.history].reverse().find(h => h.action === 'cancelled' || h.action === 'postponed');
+  const dlg = document.createElement('dialog');
+  dlg.className = 'ev-dialog';
+  dlg.setAttribute('aria-labelledby', 'evdTitle');
+  dlg.innerHTML = String(html`<div class="evd">
+    <header class="evd-head">
+      <div>
+        <div class="eyebrow">${e.category} · ${e.departmentShort}</div>
+        <h2 id="evdTitle">${e.title}</h2>
+      </div>
+      <button class="btn plain evd-close" aria-label="Close">${icon.x || '×'}</button>
+    </header>
+    ${e.status === 'cancelled' ? html`<div class="banner cancelled"><b>This event has been cancelled.</b>${lastNote && lastNote.note ? html`<p>${lastNote.note}</p>` : ''}</div>` : ''}
+    ${e.status === 'postponed' ? html`<div class="banner postponed"><b>Postponed. A new date will be announced.</b>${lastNote && lastNote.note ? html`<p>${lastNote.note}</p>` : ''}</div>` : ''}
+    <div class="evd-grid">
+      <div>
+        <dl class="evd-facts">
+          <dt>When</dt><dd><b>${D.long(start.slice(0, 10))}</b><br>${D.time(start)} – ${D.time(end)}${start.slice(0, 10) !== end.slice(0, 10) ? ` (${D.short(end)})` : ''}</dd>
+          <dt>Where</dt><dd><b>${e.venueName}</b>${e.venueLocation ? html`<br><span class="muted small">${e.venueLocation}</span>` : ''}</dd>
+          <dt>Who</dt><dd>${e.audience}</dd>
+          <dt>Contact</dt><dd>${e.contactName}<br><a href="mailto:${e.contactEmail}">${e.contactEmail}</a></dd>
+        </dl>
+        ${e.summary ? html`<p class="lede small">${e.summary}</p>` : ''}
+        <div class="evd-body">${(e.description || '').split(/\n{2,}/).map(p => html`<p>${p}</p>`)}</div>
+        <div class="acts">
+          ${live ? html`<button class="btn ${isSaved ? 'ghost' : 'orange'} sm" id="evdSave" aria-pressed="${isSaved}">${isSaved ? 'Saved to my events' : 'Save to my events'}</button>
+            <a class="btn ghost sm" href="/api/events/${e.id}/ics">${icon.cal} Add to my calendar</a>` : ''}
+          <a class="btn plain sm" href="#/event/${e.id}${on ? '?on=' + encodeURIComponent(on) : ''}">Full page</a>
+          ${e.canEdit ? html`<a class="btn plain sm" href="#/work/events/${e.id}/edit">Edit event</a>` : ''}
+        </div>
+      </div>
+      <section aria-label="Getting there"><h3 class="evd-sub">Getting there</h3><div class="map-box" id="evdMap"><p class="muted small">Loading the campus map…</p></div></section>
+    </div>
+  </div>`);
+  document.body.appendChild(dlg);
+  const close = () => dlg.close();
+  dlg.addEventListener('close', () => dlg.remove());
+  dlg.addEventListener('click', ev => { if (ev.target === dlg) close(); }); // click on the backdrop
+  dlg.querySelector('.evd-close').onclick = close;
+  dlg.querySelectorAll('a[href^="#/"]').forEach(a => a.addEventListener('click', close));
+  const save = dlg.querySelector('#evdSave');
+  if (save) save.onclick = async () => {
+    const now = save.getAttribute('aria-pressed') !== 'true';
+    try {
+      await api('/api/me/saved', { method: 'POST', body: { eventId: e.id, saved: now } });
+      await refreshMe();
+      save.setAttribute('aria-pressed', String(now));
+      save.textContent = now ? 'Saved to my events' : 'Save to my events';
+      save.className = `btn ${now ? 'ghost' : 'orange'} sm`;
+      toast(now ? 'Saved. Find it under My events.' : 'Removed from your saved events.');
+    } catch (x) { toast(x.message, true); }
+  };
+  dlg.showModal();
+  dlg.querySelector('.evd-close').focus();
+  venueMap(dlg.querySelector('#evdMap'), { placeId: e.venuePlace, venueName: e.venueName, venueLocation: e.venueLocation })
+    .catch(() => { dlg.querySelector('#evdMap').innerHTML = '<p class="muted small">The campus map could not be loaded.</p>'; });
 }
 
 // ---------------- ARCHIVE ----------------
@@ -222,7 +202,7 @@ export async function archive({ el, query }) {
   put(el, html`
   <div class="page-head"><div class="wrap">
     <div>
-      <div class="crumbs"><a href="#/">What’s on</a> / Archive</div>
+      <div class="crumbs"><a href="#/">Calendar</a> / Archive</div>
       <h1>Events archive</h1>
       <p class="muted" style="margin-top:8px">A permanent record of completed university events, including recurring series.</p>
     </div>
@@ -249,7 +229,8 @@ export async function archive({ el, query }) {
 // One form for everyone, like eMhare: the server works out from the username whether this is a
 // student (registration number or student email) or staff (email), checks the password and role,
 // and the page then sends each person to their own place.
-export const homeFor = me => (me && ['organiser', 'approver', 'admin'].includes(me.role) ? '/work' : '/me');
+// Students (and staff waiting for a role) land on the calendar; staff with a role land in the workspace.
+export const homeFor = me => (me && ['organiser', 'approver', 'admin'].includes(me.role) ? '/work' : '/');
 const STUDENT_DOMAIN = 'students.uz.ac.zw';
 const REG = /^r\d{6,8}[a-z]?$/;
 
@@ -384,7 +365,7 @@ export async function myEvents({ el }) {
     <section style="margin-bottom:40px">
       <h2 style="margin-bottom:14px">Saved events</h2>
       ${savedOnce.length ? html`<div>${savedOnce.map(e => html`<div class="saved-row">${evRow(e, { showDate: true, thumb: true })}<button class="btn ghost sm" data-unsave="${e.id}" aria-label="Remove ${e.title} from saved events">Remove</button></div>`)}</div>`
-        : empty('cal', 'No saved events yet', 'Open any event and choose “Save to my events”. It will appear here.', html`<a class="btn" href="#/">Browse what’s on</a>`, 3)}
+        : empty('cal', 'No saved events yet', 'Open any event and choose “Save to my events”. It will appear here.', html`<a class="btn" href="#/">Open the calendar</a>`, 3)}
     </section>
     <section>
       <h2 style="margin-bottom:14px">Coming up in ${dept ? dept.short : 'your faculty'}</h2>
