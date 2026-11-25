@@ -1,4 +1,4 @@
-import { html, raw, api, D, icon, initials, toast, skeleton, empty } from './util.js';
+import { html, raw, api, D, icon, initials, toast, skeleton, empty, passwordEyes } from './util.js';
 import * as pub from './views/public.js';
 import * as cal from './views/calendar.js';
 import * as work from './views/workspace.js';
@@ -49,15 +49,23 @@ function parseHash() {
 function chrome(path) {
   const me = state.me;
   const on = p => (p === '/' ? path === '/' : path.startsWith(p)) ? 'on' : '';
-  const topLinks = html`
-    <a href="#/screens">Display screens</a>
-    <a href="/api/calendar.ics">Subscribe (.ics)</a>
-    <a href="https://www.uz.ac.zw/" rel="noopener">uz.ac.zw</a>`;
+  // Staff pages (sign-in and workspace) get their own header: no public menu, just who you are and the way out.
+  if (path.startsWith('/work') || path === '/staff') {
+    return html`<header class="masthead staffhead"><div class="wrap">
+      <a class="brand" href="${me ? '#/work' : '#/staff'}" aria-label="UZ Events staff workspace">
+        <img src="/assets/uz-crest.png" alt="University of Zimbabwe crest" width="53" height="54">
+        <div><b>UZ Events</b><span>Staff workspace</span></div>
+      </a>
+      <div class="who">
+        <a class="btn ghost sm public-link" href="#/" aria-label="View public site">${icon.link}<span>View public site</span></a>
+        ${me ? html`
+          <span class="avatar" aria-hidden="true">${initials(me.name)}</span>
+          <span class="name small"><b>${me.name}</b><br><span class="role">${me.role}</span></span>
+          <button class="btn ghost sm" id="logoutBtn">Sign out</button>` : ''}
+      </div>
+    </div></header>`;
+  }
   return html`
-  <div class="topbar"><div class="wrap">
-    <span>University of Zimbabwe · Events Office<span class="tb-date"> · ${D.long(state.meta.now)}</span></span>
-    <span class="links">${topLinks}</span>
-  </div></div>
   <header class="masthead"><div class="wrap">
     <a class="brand" href="#/" aria-label="UZ Events home">
       <img src="/assets/uz-crest.png" alt="University of Zimbabwe crest" width="53" height="54">
@@ -69,14 +77,9 @@ function chrome(path) {
       <a href="#/calendar" class="${on('/calendar')}">Calendar</a>
       <a href="#/archive" class="${on('/archive')}">Archive</a>
       <a href="#/screens" class="${on('/screens')}">Visitor screens</a>
-      ${me ? html`<a href="#/work" class="${on('/work')}">Workspace</a>` : ''}
     </nav>
     <div class="who">
-      ${me ? html`
-        <span class="avatar" aria-hidden="true">${initials(me.name)}</span>
-        <span class="name small"><b>${me.name}</b><br><span class="muted">${me.role}</span></span>
-        <button class="btn ghost sm" id="logoutBtn">Sign out</button>`
-      : ''}
+      ${me ? html`<a class="btn sm" href="#/work">Go to workspace</a>` : ''}
     </div>
   </div></header>`;
 }
@@ -129,6 +132,7 @@ async function render() {
     el.innerHTML = String(html`<div class="wrap empty-state"><h1>Could not load this page</h1><p>${err.message}</p></div>`);
   }
   if (!query.keepScroll) window.scrollTo(0, 0);
+  passwordEyes(el);
   wireChrome();
   highlightRecent(path);
 }

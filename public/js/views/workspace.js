@@ -624,7 +624,7 @@ export async function users({ el, path }) {
         <div class="row">
           <label class="field"><span>Role</span><select class="input" name="role"><option value="organiser">Organiser — submits events</option><option value="approver">Approver — reviews and publishes</option><option value="admin">Administrator — full control</option></select></label>
           <label class="field"><span>Department</span><select class="input" name="department">${state.meta.departments.map(d => html`<option value="${d.id}">${d.name}</option>`)}</select></label>
-          <label class="field"><span>Temporary password</span><input class="input" name="password" minlength="10" required><small>At least 10 characters.</small></label>
+          <label class="field"><span>Temporary password</span><input class="input" type="password" name="password" minlength="10" autocomplete="new-password" required><small>At least 10 characters.</small></label>
         </div>
         <button class="btn">${icon.plus} Add user</button>
       </form>
@@ -644,7 +644,7 @@ export async function users({ el, path }) {
       if (!await ask({ title: `${u.active ? 'Deactivate' : 'Reactivate'} ${u.name}?`, text: u.active ? 'They will be signed out and unable to sign in.' : 'They will be able to sign in again.', confirm: u.active ? 'Deactivate' : 'Reactivate', danger: u.active })) return;
       upd(u.id, { active: !u.active }, u.active ? 'User deactivated.' : 'User reactivated.');
     } else {
-      const r = await ask({ title: `Reset password for ${u.name}`, text: 'They will be signed out of all sessions.', fields: [{ name: 'password', label: 'New temporary password (10+ characters)', required: true }], confirm: 'Reset password' });
+      const r = await ask({ title: `Reset password for ${u.name}`, text: 'They will be signed out of all sessions.', fields: [{ name: 'password', type: 'password', label: 'New temporary password (10+ characters)', required: true }], confirm: 'Reset password' });
       if (r) upd(u.id, { password: r.password }, 'Password reset.');
     }
   };

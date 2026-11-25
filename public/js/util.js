@@ -99,6 +99,7 @@ export function ask({ title, text = '', fields = [], confirm = 'Confirm', danger
         <button class="btn ${danger ? 'danger' : ''}" value="ok">${confirm}</button>
       </div></form>`);
     document.body.appendChild(dlg);
+    passwordEyes(dlg);
     const form = dlg.querySelector('form');
     dlg.addEventListener('close', () => {
       const ok = dlg.returnValue === 'ok';
@@ -159,4 +160,28 @@ export function qs(obj) {
   Object.entries(obj).forEach(([k, v]) => { if (v !== undefined && v !== null && v !== '') p.set(k, v); });
   const s = p.toString();
   return s ? '?' + s : '';
+}
+
+// Adds a show/hide button to every password field inside root (once per field).
+export function passwordEyes(root) {
+  root.querySelectorAll('input[type=password]:not([data-eye])').forEach(inp => {
+    inp.dataset.eye = '1';
+    const wrap = document.createElement('span');
+    wrap.className = 'pw';
+    inp.replaceWith(wrap);
+    wrap.appendChild(inp);
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'pw-eye';
+    const set = shown => {
+      inp.type = shown ? 'text' : 'password';
+      b.setAttribute('aria-pressed', String(shown));
+      b.setAttribute('aria-label', shown ? 'Hide password' : 'Show password');
+      b.title = shown ? 'Hide password' : 'Show password';
+      b.innerHTML = String(ico(shown ? 'eyeOff' : 'eye'));
+    };
+    set(false);
+    b.onclick = () => { const pos = inp.selectionStart; set(inp.type === 'password'); inp.focus(); try { inp.setSelectionRange(pos, pos); } catch {} };
+    wrap.appendChild(b);
+  });
 }

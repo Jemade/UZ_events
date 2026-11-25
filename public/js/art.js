@@ -28,6 +28,8 @@ const P = {
   shield: '<path d="M12 3 20 6v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/>',
   file: '<path d="M14 3H6v18h12V7zM14 3v4h4M9 12h6M9 16h6"/>',
   db: '<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>',
+  eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+  eyeOff: '<path d="M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.1 3.9M6.6 6.6A17 17 0 0 0 2 12s3.6 7 10 7a9.7 9.7 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2"/>',
   image: '<rect x="3" y="4" width="18" height="16" rx="1"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 9"/>',
   upload: '<path d="M12 16V4M7 9l5-5 5 5M4 20h16"/>',
   x: '<path d="M6 6l12 12M18 6 6 18"/>',
@@ -62,7 +64,7 @@ export function ico(name, { size, label } = {}) {
 export const catIcon = (cat, opts) => ico(CAT_ICON[cat] || 'cal', opts);
 
 // Chevron frieze (Great Zimbabwe) as an SVG <pattern> definition
-const chevrons = (id, color) => `<pattern id="${id}" width="20" height="8" patternUnits="userSpaceOnUse"><path d="M0 7 5 1l5 6 5-6 5 6" fill="none" stroke="${color}" stroke-width="1.6"/></pattern>`;
+const chevrons = (id, color) => `<pattern id="${id}" width="20" height="8" patternUnits="userSpaceOnUse"><path d="M0 4H20" fill="none" stroke="${color}" stroke-width="1.6"/></pattern>`;
 const bricks = (id, color) => `<pattern id="${id}" width="32" height="16" patternUnits="userSpaceOnUse"><path d="M0 .5h32M0 8.5h32M.5 0v8M16.5 0v8M8.5 8v8M24.5 8v8" fill="none" stroke="${color}" stroke-width="1"/></pattern>`;
 
 let uid = 0;
