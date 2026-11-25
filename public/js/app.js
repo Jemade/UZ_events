@@ -90,7 +90,7 @@ function chrome(path) {
     </nav>
     <div class="who">
       ${me ? html`
-        ${can('organiser') ? html`<a class="btn sm" href="#/work">Go to workspace</a>` : html`<a class="btn sm ${on('/me')}" href="#/me">My events</a>`}
+        ${can('organiser') ? html`<a class="btn sm" href="#/work">Go to workspace</a>` : html`<a class="btn sm ${on('/me')}" href="#/me">Events</a>`}
         <button class="btn ghost sm" id="logoutBtn">Sign out</button>`
       : ''}
     </div>
@@ -106,7 +106,7 @@ function footer() {
         <p class="small">The official source for events at the University of Zimbabwe, Mount Pleasant, Harare.</p>
       </div>
       <div><h2>Find events</h2><a href="#/">Calendar</a><a href="#/archive">Archive</a><a href="/api/calendar.ics">Calendar feed (.ics)</a></div>
-      ${state.me && !can('organiser') ? html`<div><h2>Your account</h2><a href="#/me">My events</a><a href="#/">Calendar</a></div>` : state.me ? html`<div><h2>Your workspace</h2><a href="#/work">Workspace</a><a href="#/work/events/new">Submit an event</a><a href="#/work/messages/new">Request a welcome message</a></div>` : html`<div><h2>University</h2><a href="https://www.uz.ac.zw/" rel="noopener">University website</a><a href="https://www.uz.ac.zw/index.php/news-events" rel="noopener">University news</a></div>`}
+      ${state.me && !can('organiser') ? html`<div><h2>Your account</h2><a href="#/me">Events</a><a href="#/">Calendar</a></div>` : state.me ? html`<div><h2>Your workspace</h2><a href="#/work">Workspace</a><a href="#/work/events/new">Submit an event</a><a href="#/work/messages/new">Request a welcome message</a></div>` : html`<div><h2>University</h2><a href="https://www.uz.ac.zw/" rel="noopener">University website</a><a href="https://www.uz.ac.zw/index.php/news-events" rel="noopener">University news</a></div>`}
       <div><h2>Contact</h2><p class="small">Events Office, Registrar’s Department<br>630 Churchill Avenue, Mount Pleasant, Harare</p><a href="https://www.uz.ac.zw/" rel="noopener">www.uz.ac.zw</a></div>
     </div>
     <div class="base"><div class="wrap"><span>© ${state.meta.now.slice(0, 4)} University of Zimbabwe</span><span>Events Office · Registrar’s Department</span></div></div>

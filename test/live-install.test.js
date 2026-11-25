@@ -32,7 +32,9 @@ test('a new live installation starts empty with one administrator and the bundle
   assert.match(ok.headers.get('set-cookie'), /; Secure/, 'cookies are Secure on https');
   assert.equal((await ok.json()).user.role, 'admin');
   const events = await (await fetch(base + '/api/events?from=2000-01-01&to=2100-01-01', { headers: { Cookie: ok.headers.get('set-cookie').split(';')[0] } })).json();
-  assert.equal(events.events.length, 0);
+  assert.equal(events.events.length, 1, 'one sample event to try');
+  assert.equal(events.events[0].venueId, 'gh');
+  assert.equal(events.events[0].venuePlace, 'w297130203', 'its venue is on the campus map');
 });
 
 test('sign-in throttling counts each visitor separately behind the proxy', async () => {

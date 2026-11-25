@@ -45,8 +45,38 @@ export const D = {
   relDays(ymd, today) { return Math.round((D.parse(ymd) - D.parse(today)) / 864e5); },
 };
 
+// ---- Busy spinner ----
+// Whatever was just pressed (a button, a link styled as a button, an event on the calendar)
+// shows a spinner until the request it started has finished.
+let pressed = null;
+const PRESSABLE = 'button, a.btn, a.item, a.ev-row, .blk, [data-busy]';
+if (typeof document !== 'undefined') {
+  document.addEventListener('click', ev => { const t = ev.target.closest && ev.target.closest(PRESSABLE); if (t) pressed = { el: t, at: Date.now() }; }, true);
+  document.addEventListener('submit', ev => { const b = ev.submitter || ev.target.querySelector('button:not([type=button])'); if (b) pressed = { el: b, at: Date.now() }; }, true);
+}
+const busyCount = new WeakMap();
+function markBusy(el) {
+  busyCount.set(el, (busyCount.get(el) || 0) + 1);
+  el.classList.add('busy');
+  el.setAttribute('aria-busy', 'true');
+  if (el.tagName === 'BUTTON') el.disabled = true;
+}
+function clearBusy(el) {
+  const n = (busyCount.get(el) || 1) - 1;
+  busyCount.set(el, n);
+  if (n > 0) return;
+  el.classList.remove('busy');
+  el.removeAttribute('aria-busy');
+  if (el.tagName === 'BUTTON') el.disabled = false;
+}
+
 // ---- API ----
-export async function api(path, { method = 'GET', body } = {}) {
+export async function api(path, opts = {}) {
+  const p = pressed && Date.now() - pressed.at < 1500 && pressed.el.isConnected ? pressed.el : null;
+  if (p) markBusy(p);
+  try { return await request(path, opts); } finally { if (p) { clearBusy(p); if (pressed && pressed.el === p) pressed.at = Date.now(); } } // a follow-up request keeps the spinner
+}
+async function request(path, { method = 'GET', body } = {}) {
   const res = await fetch(path, {
     method,
     headers: { ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}), 'X-UZ-Request': '1' },
@@ -183,5 +213,98 @@ export function passwordEyes(root) {
     set(false);
     b.onclick = () => { const pos = inp.selectionStart; set(inp.type === 'password'); inp.focus(); try { inp.setSelectionRange(pos, pos); } catch {} };
     wrap.appendChild(b);
+  });
+}
+
+// ---- Forms that fit the screen ----
+// A form is shown whole when it fits the window. When it does not, it is shown one section
+// (fieldset) at a time with Back and Next, so every part of it is fully visible without scrolling.
+export function fitForm(form) {
+  const sections = [...form.querySelectorAll(':scope > fieldset')];
+  if (sections.length < 2) return () => {};
+  const actions = form.querySelector(':scope > .form-actions');
+  let step = 0, nav = null;
+  // Room taken at the bottom by the phone navigation bar, only when it is actually on screen.
+  const reserve = () => { const bar = document.querySelector('.bottombar'); if (!bar || !bar.offsetParent) return 0; return Math.max(0, window.innerHeight - bar.getBoundingClientRect().top); };
+  const whole = () => {
+    form.classList.remove('stepped');
+    sections.forEach(s => { s.hidden = false; });
+    if (actions) { actions.hidden = false; form.appendChild(actions); }
+    if (nav) { nav.remove(); nav = null; }
+  };
+  const valid = s => [...s.querySelectorAll('input, select, textarea')].every(i => i.disabled || i.checkValidity() || (i.reportValidity(), false));
+  const show = i => {
+    step = Math.max(0, Math.min(sections.length - 1, i));
+    sections.forEach((s, k) => { s.hidden = k !== step; });
+    const last = step === sections.length - 1;
+    // On the last step the form's own buttons sit in the same row as Back.
+    if (actions) { actions.hidden = !last; if (last) nav.appendChild(actions); else form.appendChild(actions); }
+    nav.classList.toggle('last', last);
+    nav.querySelector('[data-step="back"]').hidden = step === 0;
+    nav.querySelector('[data-step="next"]').hidden = last;
+    nav.querySelector('.step-count').textContent = `Step ${step + 1} of ${sections.length}`;
+    const first = sections[step].querySelector('input:not([type=hidden]):not([type=file]), select, textarea');
+    if (first && form.dataset.stepFocus) first.focus({ preventScroll: true });
+    form.dataset.stepFocus = '1';
+  };
+  const stepped = () => {
+    form.classList.add('stepped');
+    if (!nav) {
+      nav = document.createElement('div');
+      nav.className = 'step-nav';
+      nav.innerHTML = '<button type="button" class="btn ghost" data-step="back">Back</button><span class="step-count small muted" aria-live="polite"></span><button type="button" class="btn" data-step="next">Next</button>';
+      form.insertBefore(nav, actions || null);
+      nav.onclick = ev => {
+        const b = ev.target.closest('[data-step]');
+        if (!b) return;
+        if (b.dataset.step === 'next' && !valid(sections[step])) return;
+        show(step + (b.dataset.step === 'next' ? 1 : -1));
+      };
+    }
+    show(step);
+  };
+  const fit = () => {
+    whole();
+    const bottom = form.getBoundingClientRect().bottom + window.scrollY;
+    if (bottom > window.innerHeight - reserve() - 8) stepped();
+  };
+  // When a server error comes back, go to the section it is about if we can tell, else stay.
+  form.showStepOf = el => { const k = sections.findIndex(s => s.contains(el)); if (k >= 0 && nav) show(k); };
+  fit();
+  let t;
+  const onResize = () => { if (!form.isConnected) { window.removeEventListener('resize', onResize); return; } clearTimeout(t); t = setTimeout(() => { const keep = step; fit(); if (nav) show(keep); }, 150); };
+  window.addEventListener('resize', onResize);
+  return () => window.removeEventListener('resize', onResize);
+}
+
+// A form in a pop-up. `submit(values)` runs when the form is sent; the pop-up closes when it succeeds
+// and shows the error and stays open when it fails. Resolves with submit's result, or null if cancelled.
+export function formDialog({ title, body, confirm = 'Save' }, submit) {
+  return new Promise(resolve => {
+    const dlg = document.createElement('dialog');
+    dlg.setAttribute('aria-label', title);
+    dlg.innerHTML = String(html`<form novalidate>
+      <h2>${title}</h2>
+      <div class="dlg-err"></div>
+      ${body}
+      <div class="form-actions"><button type="button" class="btn ghost" data-cancel>Cancel</button><button class="btn">${confirm}</button></div>
+    </form>`);
+    document.body.appendChild(dlg);
+    passwordEyes(dlg);
+    const form = dlg.querySelector('form');
+    let result = null;
+    dlg.addEventListener('close', () => { dlg.remove(); resolve(result); });
+    dlg.querySelector('[data-cancel]').onclick = () => dlg.close();
+    form.onsubmit = async ev => {
+      ev.preventDefault();
+      const bad = [...form.querySelectorAll('input, select, textarea')].find(i => !i.checkValidity());
+      if (bad) { bad.reportValidity(); return; }
+      const values = Object.fromEntries(new FormData(form));
+      try { result = await submit(values); dlg.close(); }
+      catch (err) { dlg.querySelector('.dlg-err').innerHTML = String(html`<div class="error" role="alert">${err.message}</div>`); }
+    };
+    dlg.showModal();
+    const first = form.querySelector('input, select, textarea');
+    if (first) first.focus();
   });
 }

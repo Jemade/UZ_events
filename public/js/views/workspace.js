@@ -1,4 +1,4 @@
-import { html, raw, api, D, icon, toast, ask, pill, tag, qs, initials, STATUS_LABEL, empty, compressImage } from '../util.js';
+import { html, raw, api, D, icon, toast, ask, pill, tag, qs, initials, STATUS_LABEL, empty, compressImage, fitForm, formDialog } from '../util.js';
 import { ico, categoryArt } from '../art.js';
 import { state, go, can, today, render } from '../app.js';
 
@@ -262,20 +262,24 @@ export async function eventForm({ el, path, params }) {
         <div id="err"></div>
         <fieldset><legend>About the event</legend>
           <label class="field"><span>Title</span><input class="input" name="title" required maxlength="140" value="${v.title}"></label>
-          <label class="field"><span>Short summary</span><input class="input" name="summary" maxlength="280" value="${v.summary}"><small>One sentence shown in listings. Up to 280 characters.</small></label>
-          <label class="field"><span>Full description</span><textarea class="input" name="description" maxlength="5000" rows="6">${v.description}</textarea></label>
+          <label class="field"><span>Short summary</span><input class="input" name="summary" maxlength="280" value="${v.summary}"><small>One sentence shown in listings.</small></label>
           <div class="row">
             <label class="field"><span>Category</span><select class="input" name="category">${state.meta.categories.map(c => html`<option ${v.category === c ? raw('selected') : ''}>${c}</option>`)}</select></label>
             <label class="field"><span>Faculty or office</span><select class="input" name="departmentId" ${deptLocked ? raw('disabled') : ''}>${state.meta.departments.map(d => html`<option value="${d.id}" ${v.departmentId === d.id ? raw('selected') : ''}>${d.name}</option>`)}</select>${deptLocked ? html`<small>Organisers submit for their own department.</small>` : ''}</label>
           </div>
         </fieldset>
-        <fieldset><legend>When and where</legend>
+        <fieldset><legend>Description</legend>
+          <label class="field"><span>Full description</span><textarea class="input" name="description" maxlength="5000" rows="6">${v.description}</textarea></label>
+        </fieldset>
+        <fieldset><legend>When</legend>
           <div class="row">
             <label class="field"><span>Start date</span><input class="input" type="date" name="sd" required value="${v.start.slice(0, 10)}"></label>
             <label class="field"><span>Start time</span><input class="input" type="time" name="st" required value="${v.start.slice(11)}"></label>
             <label class="field"><span>End date</span><input class="input" type="date" name="ed" required value="${v.end.slice(0, 10)}"></label>
             <label class="field"><span>End time</span><input class="input" type="time" name="et" required value="${v.end.slice(11)}"></label>
           </div>
+        </fieldset>
+        <fieldset><legend>Where</legend>
           <div class="row">
             <label class="field"><span>Venue</span><select class="input" name="venueId" required><option value="">Choose a venue…</option>${state.meta.venues.map(x => html`<option value="${x.id}" ${v.venueId === x.id ? raw('selected') : ''}>${x.name} (${x.capacity})</option>`)}</select></label>
             <label class="field"><span>Repeats</span><select class="input" name="freq">${[['none', 'Does not repeat'], ['weekly', 'Every week'], ['monthly', 'Every month']].map(([k, l]) => html`<option value="${k}" ${v.recurrence.freq === k ? raw('selected') : ''}>${l}</option>`)}</select></label>
@@ -374,6 +378,7 @@ export async function eventForm({ el, path, params }) {
       err.scrollIntoView({ block: 'center' });
     }
   };
+  fitForm(f);
 }
 
 // ---------------- REVIEW QUEUE ----------------
@@ -557,8 +562,10 @@ export async function messageForm({ el, path, params }) {
         <fieldset><legend>Guest</legend>
           <label class="field"><span>Guest name</span><input class="input" name="guestName" maxlength="120" required value="${v.guestName}" placeholder="e.g. His Excellency the Ambassador of Kenya"></label>
           <label class="field"><span>Title or organisation</span><input class="input" name="guestTitle" maxlength="160" value="${v.guestTitle}"></label>
-          ${photoField({ name: 'photo', value: v.photo, label: 'Guest photo (optional)', help: 'Portrait, supplied or approved by protocol. If empty, the linked event’s photo is used.', fallback: html`${ico('user', { size: 40 })}` })}
           <label class="field"><span>Approved wording</span><textarea class="input" name="wording" maxlength="600" rows="4" required>${v.wording}</textarea><small><span id="wc">0</span>/600 characters</small></label>
+        </fieldset>
+        <fieldset><legend>Photo</legend>
+          ${photoField({ name: 'photo', value: v.photo, label: 'Guest photo (optional)', help: 'Portrait, supplied or approved by protocol. If empty, the linked event’s photo is used.', fallback: html`${ico('user', { size: 40 })}` })}
         </fieldset>
         <fieldset><legend>Where and when</legend>
           <div class="row">
@@ -590,6 +597,7 @@ export async function messageForm({ el, path, params }) {
   };
   f.addEventListener('input', pv); pv();
   wirePhotos(main, pv);
+  fitForm(f);
   let mode = 'save';
   f.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => { mode = b.dataset.mode; }));
   f.onsubmit = async ev => {
@@ -616,7 +624,7 @@ export async function users({ el, path }) {
   const staff = list.filter(u => u.role !== 'student' && !(u.role === 'staff' && u.active));
   const students = list.filter(u => u.role === 'student');
   const main = await layout(el, path, html`
-    ${head('Users and roles', 'Staff create their own accounts with their email; you give each person the lowest role they need. Students sign up with their registration number.')}
+    ${head('Users and roles', 'Staff create their own accounts with their email; you give each person the lowest role they need. Students sign up with their student email.', html`<button class="btn" id="addUser">${icon.plus} Add a user</button>`)}
     ${waiting.length ? html`<section class="panel" style="border-left:4px solid var(--orange)"><header><h2>Waiting for a role <span class="badge">${waiting.length}</span></h2></header>
       <div class="table-wrap"><table class="t"><thead><tr><th>Name</th><th>Department</th><th>Signed up</th><th>Give a role</th></tr></thead><tbody>
       ${waiting.map(u => html`<tr>${who(u)}<td>${deptSel(u)}</td><td class="small">${D.stamp(u.createdAt)}</td>
@@ -629,20 +637,7 @@ export async function users({ el, path }) {
     ${students.length ? html`<div class="panel table-wrap"><table class="t"><thead><tr><th>Name</th><th>Registration number</th><th>Faculty</th><th>Status</th><th></th></tr></thead><tbody>
       ${students.map(u => html`<tr>${who(u)}<td><b>${u.regNumber}</b></td><td>${deptShort(u.department)}</td><td>${status(u)}</td><td>${acts(u)}</td></tr>`)}</tbody></table></div>`
       : html`<p class="muted" style="margin-bottom:24px">No students have created an account yet.</p>`}
-    <section class="panel"><header><h2>Add a user</h2></header>
-      <form class="pad" id="nu">
-        <div class="row">
-          <label class="field"><span>Full name</span><input class="input" name="name" required></label>
-          <label class="field"><span>Email</span><input class="input" name="email" type="email" required></label>
-        </div>
-        <div class="row">
-          <label class="field"><span>Role</span><select class="input" name="role"><option value="organiser">Organiser: submits events</option><option value="approver">Approver: reviews and publishes</option><option value="admin">Administrator: full control</option></select></label>
-          <label class="field"><span>Department</span><select class="input" name="department">${state.meta.departments.map(d => html`<option value="${d.id}">${d.name}</option>`)}</select></label>
-          <label class="field"><span>Temporary password</span><input class="input" type="password" name="password" minlength="10" autocomplete="new-password" required><small>At least 10 characters.</small></label>
-        </div>
-        <button class="btn">${icon.plus} Add user</button>
-      </form>
-    </section>`);
+`);
   const upd = async (id, body, msg) => { try { await api('/api/users/' + id, { method: 'PUT', body }); toast(msg); rerender(); } catch (err) { toast(err.message, true); rerender(); } };
   main.querySelectorAll('[data-role]').forEach(s => s.onchange = async () => {
     const u = list.find(x => x.id === s.dataset.role);
@@ -668,9 +663,17 @@ export async function users({ el, path }) {
       if (r) upd(u.id, { password: r.password }, 'Password reset.');
     }
   };
-  main.querySelector('#nu').onsubmit = async ev => {
-    ev.preventDefault();
-    try { await api('/api/users', { method: 'POST', body: Object.fromEntries(new FormData(ev.target)) }); toast('User added.'); rerender(); } catch (err) { toast(err.message, true); }
+  main.querySelector('#addUser').onclick = async () => {
+    const done = await formDialog({ title: 'Add a user', confirm: 'Add user', body: html`
+      <label class="field"><span>Full name</span><input class="input" name="name" minlength="2" required></label>
+      <label class="field"><span>Email</span><input class="input" name="email" type="email" required></label>
+      <div class="row">
+        <label class="field"><span>Role</span><select class="input" name="role"><option value="organiser">Organiser</option><option value="approver">Approver</option><option value="admin">Administrator</option></select></label>
+        <label class="field"><span>Department</span><select class="input" name="department">${state.meta.departments.map(d => html`<option value="${d.id}">${d.short}</option>`)}</select></label>
+      </div>
+      <label class="field"><span>Temporary password</span><input class="input" type="password" name="password" minlength="10" autocomplete="new-password" required><small>At least 10 characters.</small></label>` },
+      values => api('/api/users', { method: 'POST', body: values }));
+    if (done) { toast('User added.'); rerender(); }
   };
 }
 
@@ -681,47 +684,29 @@ export async function venues({ el, path }) {
   const placeName = id => (map.places.find(p => p.id === id) || {}).name;
   const placeSel = (value = '') => html`<select class="input" name="mapPlace"><option value="">Not on the map</option>${map.places.map(p => html`<option value="${p.id}" ${p.id === value ? raw('selected') : ''}>${p.name}</option>`)}</select>`;
   const main = await layout(el, path, html`
-    ${head('Venues', 'Venues are used for bookings, clash detection and the walking directions on each event.')}
+    ${head('Venues', 'Venues are used for bookings, clash detection and the walking directions on each event.', html`<button class="btn" id="addVenue">${icon.plus} Add a venue</button>`)}
     <div class="panel table-wrap"><table class="t"><thead><tr><th>Venue</th><th>Location</th><th>On the campus map</th><th style="text-align:right">Capacity</th><th></th></tr></thead><tbody>
     ${state.meta.venues.map(v => html`<tr><td class="title"><b>${v.name}</b></td><td class="small">${v.location}</td><td class="small">${placeName(v.mapPlace) || html`<span class="muted">Not on the map</span>`}</td><td style="text-align:right">${v.capacity.toLocaleString('en-GB')}</td><td><div class="acts"><a class="btn ghost sm" href="#/calendar?view=week&venue=${v.id}">Bookings</a><button class="btn ghost sm" data-id="${v.id}">Edit</button></div></td></tr>`)}
     </tbody></table></div>
-    <section class="panel"><header><h2>Add a venue</h2></header>
-      <form class="pad" id="nv"><div class="row">
-        <label class="field"><span>Name</span><input class="input" name="name" required></label>
-        <label class="field"><span>Location</span><input class="input" name="location"></label>
-        <label class="field"><span>Capacity</span><input class="input" name="capacity" type="number" min="0"></label>
-        <label class="field"><span>Building on the campus map</span>${placeSel()}</label>
-      </div><button class="btn">${icon.plus} Add venue</button></form>
-    </section>
     <p class="small muted">${map.attribution}</p>`);
   const done = async msg => { const { refreshMeta } = await import('../app.js'); await refreshMeta(); toast(msg); rerender(); };
-  main.querySelector('#nv').onsubmit = async ev => {
-    ev.preventDefault();
-    try { await api('/api/venues', { method: 'POST', body: Object.fromEntries(new FormData(ev.target)) }); done('Venue added.'); } catch (err) { toast(err.message, true); }
+  const venueFields = (v = {}) => html`
+    <label class="field"><span>Name</span><input class="input" name="name" value="${v.name || ''}" minlength="2" required></label>
+    <div class="row">
+      <label class="field"><span>Location</span><input class="input" name="location" value="${v.location || ''}"></label>
+      <label class="field"><span>Capacity</span><input class="input" name="capacity" type="number" min="0" value="${v.capacity != null ? String(v.capacity) : ''}"></label>
+    </div>
+    <label class="field"><span>Building on the campus map</span>${placeSel(v.mapPlace || '')}<small>Events here show a walking route to this building.</small></label>`;
+  main.querySelector('#addVenue').onclick = async () => {
+    const added = await formDialog({ title: 'Add a venue', confirm: 'Add venue', body: venueFields() }, values => api('/api/venues', { method: 'POST', body: values }));
+    if (added) done('Venue added.');
   };
   main.onclick = async ev => {
     const b = ev.target.closest('button[data-id]');
     if (!b) return;
     const v = state.meta.venues.find(x => x.id === b.dataset.id);
-    const dlg = document.createElement('dialog');
-    dlg.setAttribute('aria-label', 'Edit venue');
-    dlg.innerHTML = String(html`<form method="dialog">
-      <h2>Edit venue</h2>
-      <label class="field"><span>Name</span><input class="input" name="name" value="${v.name}" required></label>
-      <label class="field"><span>Location</span><input class="input" name="location" value="${v.location}"></label>
-      <label class="field"><span>Capacity</span><input class="input" name="capacity" type="number" min="0" value="${String(v.capacity)}"></label>
-      <label class="field"><span>Building on the campus map</span>${placeSel(v.mapPlace || '')}<small>Events here show a walking route to this building.</small></label>
-      <div class="form-actions"><button class="btn ghost" value="cancel" formnovalidate>Cancel</button><button class="btn" value="ok">Save</button></div>
-    </form>`);
-    document.body.appendChild(dlg);
-    dlg.addEventListener('close', async () => {
-      const body = Object.fromEntries(new FormData(dlg.querySelector('form')));
-      const ok = dlg.returnValue === 'ok';
-      dlg.remove();
-      if (!ok) return;
-      try { await api('/api/venues/' + v.id, { method: 'PUT', body }); done('Venue updated.'); } catch (err) { toast(err.message, true); }
-    });
-    dlg.showModal();
+    const ok = await formDialog({ title: 'Edit venue', body: venueFields(v) }, values => api('/api/venues/' + v.id, { method: 'PUT', body: values }));
+    if (ok) done('Venue updated.');
   };
 }
 

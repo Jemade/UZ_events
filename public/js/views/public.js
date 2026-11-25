@@ -1,4 +1,4 @@
-import { html, raw, api, D, icon, toast, tag, qs, empty } from '../util.js';
+import { html, raw, api, D, icon, toast, tag, qs, empty, fitForm } from '../util.js';
 import { ico, categoryArt } from '../art.js';
 import { state, go, today, render, refreshMe, can } from '../app.js';
 import { venueMap } from './campusmap.js';
@@ -96,7 +96,7 @@ export async function eventDetail({ el, params, query }) {
       </dl>
       <div class="actions">
         ${['published', 'postponed'].includes(e.status) ? html`<a class="btn" href="/api/events/${e.id}/ics">${icon.cal} Add to my calendar</a>` : ''}
-        ${state.me && ['published', 'postponed'].includes(e.status) ? html`<button class="btn ${isSaved ? 'ghost' : 'orange'}" id="save" aria-pressed="${isSaved}">${isSaved ? 'Saved to my events' : 'Save to my events'}</button>` : ''}
+        ${state.me && ['published', 'postponed'].includes(e.status) ? html`<button class="btn ${isSaved ? 'ghost' : 'orange'}" id="save" aria-pressed="${isSaved}">${isSaved ? 'Saved to Events' : 'Save to Events'}</button>` : ''}
         <button class="btn ghost" id="copy">${icon.link} Copy link</button>
         <button class="btn ghost" id="print">${icon.print} Print</button>
         ${e.canEdit ? html`<a class="btn orange" href="#/work/events/${e.id}/edit">Edit event</a>` : ''}
@@ -113,7 +113,7 @@ export async function eventDetail({ el, params, query }) {
     try {
       await api('/api/me/saved', { method: 'POST', body: { eventId: e.id, saved: !isSaved } });
       await refreshMe();
-      toast(isSaved ? 'Removed from your saved events.' : 'Saved. Find it under My events.');
+      toast(isSaved ? 'Removed from your saved events.' : 'Saved. Find it under Events.');
       render();
     } catch (x) { toast(x.message, true); }
   };
@@ -155,7 +155,7 @@ export async function eventDialog(id, on) {
         ${e.summary ? html`<p class="lede small">${e.summary}</p>` : ''}
         <div class="evd-body">${(e.description || '').split(/\n{2,}/).map(p => html`<p>${p}</p>`)}</div>
         <div class="acts">
-          ${live ? html`<button class="btn ${isSaved ? 'ghost' : 'orange'} sm" id="evdSave" aria-pressed="${isSaved}">${isSaved ? 'Saved to my events' : 'Save to my events'}</button>
+          ${live ? html`<button class="btn ${isSaved ? 'ghost' : 'orange'} sm" id="evdSave" aria-pressed="${isSaved}">${isSaved ? 'Saved to Events' : 'Save to Events'}</button>
             <a class="btn ghost sm" href="/api/events/${e.id}/ics">${icon.cal} Add to my calendar</a>` : ''}
           <a class="btn plain sm" href="#/event/${e.id}${on ? '?on=' + encodeURIComponent(on) : ''}">Full page</a>
           ${e.canEdit ? html`<a class="btn plain sm" href="#/work/events/${e.id}/edit">Edit event</a>` : ''}
@@ -177,9 +177,9 @@ export async function eventDialog(id, on) {
       await api('/api/me/saved', { method: 'POST', body: { eventId: e.id, saved: now } });
       await refreshMe();
       save.setAttribute('aria-pressed', String(now));
-      save.textContent = now ? 'Saved to my events' : 'Save to my events';
+      save.textContent = now ? 'Saved to Events' : 'Save to Events';
       save.className = `btn ${now ? 'ghost' : 'orange'} sm`;
-      toast(now ? 'Saved. Find it under My events.' : 'Removed from your saved events.');
+      toast(now ? 'Saved. Find it under Events.' : 'Removed from your saved events.');
     } catch (x) { toast(x.message, true); }
   };
   dlg.showModal();
@@ -243,13 +243,11 @@ const trap = html`<div class="hp" aria-hidden="true"><label>Leave this empty<inp
 export async function login({ el, query }) {
   if (state.me) { go('#' + homeFor(state.me)); return; }
   authShell(el, html`
-      <img src="/assets/uz-crest.png" alt="University of Zimbabwe crest" width="82" height="84">
-      <h1>Welcome to UZ Events</h1>
-      <p class="muted" style="margin-bottom:22px">Sign in to see university events.</p>
-      ${query.created ? html`<div class="banner info" role="status"><b>Account created.</b><p>Sign in with your ${query.reg ? `registration number (${query.reg})` : 'email'} and password.</p></div>` : ''}
+      <div class="auth-title"><img src="/assets/uz-crest.png" alt="University of Zimbabwe crest" width="52" height="54"><div><h1>Welcome to UZ Events</h1><p class="muted">Sign in to see university events.</p></div></div>
+      ${query.created ? html`<div class="banner info" role="status"><b>Account created.</b> Sign in with your email and password.</div>` : ''}
       <form id="lf" novalidate>
         <div id="err"></div>
-        <label class="field"><span>Username</span><input class="input" name="login" autocomplete="username" spellcheck="false" autocapitalize="none" placeholder="Registration number or email" value="${query.reg || query.email || ''}" required><small>Students: your registration number, e.g. R2420211. Staff: your email.</small></label>
+        <label class="field"><span>Email</span><input class="input" type="text" inputmode="email" name="login" autocomplete="username" spellcheck="false" autocapitalize="none" placeholder="Enter your email" value="${query.email || ''}" required></label>
         <label class="field"><span>Password</span><input class="input" type="password" name="password" autocomplete="current-password" placeholder="Enter your password" required></label>
         ${trap}
         <button class="btn" style="width:100%;height:48px">Sign in</button>
@@ -258,7 +256,7 @@ export async function login({ el, query }) {
         <span>No account yet? <a href="#/signup">Create an account</a></span>
         <a href="#" id="forgot">Forgot your password?</a>
       </div>
-      <p class="small muted" id="forgotMsg" hidden>Ask the Events Office (Registrar’s Department) to reset your password. You will get a temporary password to sign in with.</p>`);
+      <p class="small muted" id="forgotMsg" hidden>Ask the Events Office (Registrar’s Department) to reset your password.</p>`);
   const form = el.querySelector('#lf');
   if (query.created) form.password.focus(); else form.login.focus();
   el.querySelector('#forgot').onclick = ev => { ev.preventDefault(); el.querySelector('#forgotMsg').hidden = false; };
@@ -266,8 +264,8 @@ export async function login({ el, query }) {
     ev.preventDefault();
     const err = el.querySelector('#err');
     const value = form.login.value.trim();
-    if (!value || !form.password.value) { err.innerHTML = String(html`<div class="error" role="alert">Enter your username and password.</div>`); return; }
-    const btn = form.querySelector('button');
+    if (!value || !form.password.value) { err.innerHTML = String(html`<div class="error" role="alert">Enter your email and password.</div>`); return; }
+    const btn = form.querySelector('button.btn');
     btn.disabled = true; btn.textContent = 'Signing in…';
     try {
       await api('/api/login', { method: 'POST', body: { login: value, password: form.password.value, website: form.website.value } });
@@ -283,26 +281,31 @@ export async function login({ el, query }) {
   };
 }
 
-export async function signup({ el }) {
+export async function signup({ el, onCleanup }) {
   if (state.me) { go('#' + homeFor(state.me)); return; }
   authShell(el, html`
-      <img src="/assets/uz-crest.png" alt="University of Zimbabwe crest" width="82" height="84">
-      <h1>Create an account</h1>
-      <p class="muted" style="margin-bottom:22px">Students use their student email. Staff use their own email.</p>
+      <div class="auth-title"><img src="/assets/uz-crest.png" alt="University of Zimbabwe crest" width="52" height="54"><div><h1>Create an account</h1><p class="muted">Students use their student email. Staff use their own email.</p></div></div>
       <form id="sf" novalidate>
         <div id="err"></div>
-        <label class="field"><span>Full name</span><input class="input" name="name" autocomplete="name" required></label>
-        <label class="field"><span>Email</span><input class="input" type="email" name="email" autocomplete="email" spellcheck="false" placeholder="e.g. r2420211@${STUDENT_DOMAIN}" required aria-describedby="kindHint"><small id="kindHint" aria-live="polite">Your account type is worked out from your email.</small></label>
-        <label class="field"><span>Faculty or department</span><select class="input" name="department" required><option value="">Choose…</option>${state.meta.departments.map(d => html`<option value="${d.id}">${d.name}</option>`)}</select></label>
-        <label class="field"><span>Password</span><input class="input" type="password" name="password" minlength="10" autocomplete="new-password" required><small>At least 10 characters.</small></label>
-        <label class="field"><span>Confirm password</span><input class="input" type="password" name="confirm" minlength="10" autocomplete="new-password" required></label>
+        <fieldset><legend>About you</legend>
+          <label class="field"><span>Full name</span><input class="input" name="name" autocomplete="name" minlength="2" required></label>
+          <label class="field"><span>Email</span><input class="input" type="email" name="email" autocomplete="email" spellcheck="false" placeholder="Enter your email" required aria-describedby="kindHint"><small id="kindHint" aria-live="polite">Your account type is worked out from your email.</small></label>
+          <label class="field"><span>Faculty or department</span><select class="input" name="department" required><option value="">Choose…</option>${state.meta.departments.map(d => html`<option value="${d.id}">${d.name}</option>`)}</select></label>
+        </fieldset>
+        <fieldset><legend>Password</legend>
+          <div class="row">
+            <label class="field"><span>Password</span><input class="input" type="password" name="password" minlength="10" autocomplete="new-password" required><small>At least 10 characters.</small></label>
+            <label class="field"><span>Confirm password</span><input class="input" type="password" name="confirm" minlength="10" autocomplete="new-password" required></label>
+          </div>
+        </fieldset>
         ${trap}
-        <button class="btn" style="width:100%;height:48px">Create account</button>
+        <div class="form-actions"><button class="btn" style="width:100%;height:48px">Create account</button></div>
       </form>
       <div class="auth-links small"><span>Already have an account? <a href="#/login">Sign in</a></span></div>`);
   const form = el.querySelector('#sf');
   const err = el.querySelector('#err');
   const hint = el.querySelector('#kindHint');
+  onCleanup(fitForm(form));
   const fail = msg => { err.innerHTML = String(html`<div class="error" role="alert">${msg}</div>`); err.scrollIntoView({ block: 'nearest' }); };
   // Tell people, as they type, what kind of account their email will make.
   const kindOf = email => {
@@ -332,7 +335,7 @@ export async function signup({ el }) {
     try {
       const r = await api('/api/signup', { method: 'POST', body });
       toast('Account created. Please sign in.');
-      go('#/login' + qs(r.user.regNumber ? { created: 1, reg: r.user.regNumber } : { created: 1, email: r.user.email }));
+      go('#/login' + qs({ created: 1, email: r.user.email }));
     } catch (x) { fail(x.message); }
   };
 }
@@ -351,7 +354,7 @@ export async function myEvents({ el }) {
   const mine = upcoming.filter(e => e.departmentId === me.department).slice(0, 12);
   const dept = state.meta.departments.find(d => d.id === me.department);
   const waiting = me.role === 'staff';
-  document.title = 'My events · UZ Events';
+  document.title = 'Events · UZ Events';
   put(el, html`
   <div class="page-head"><div class="wrap">
     <div>
@@ -365,7 +368,7 @@ export async function myEvents({ el }) {
     <section style="margin-bottom:40px">
       <h2 style="margin-bottom:14px">Saved events</h2>
       ${savedOnce.length ? html`<div>${savedOnce.map(e => html`<div class="saved-row">${evRow(e, { showDate: true, thumb: true })}<button class="btn ghost sm" data-unsave="${e.id}" aria-label="Remove ${e.title} from saved events">Remove</button></div>`)}</div>`
-        : empty('cal', 'No saved events yet', 'Open any event and choose “Save to my events”. It will appear here.', html`<a class="btn" href="#/">Open the calendar</a>`, 3)}
+        : empty('cal', 'No saved events yet', 'Open any event and choose “Save to Events”. It will appear here.', html`<a class="btn" href="#/">Open the calendar</a>`, 3)}
     </section>
     <section>
       <h2 style="margin-bottom:14px">Coming up in ${dept ? dept.short : 'your faculty'}</h2>

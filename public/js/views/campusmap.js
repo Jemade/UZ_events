@@ -44,6 +44,94 @@ const toLatLon = (m, x, y) => {
   return [(o.lat - y / o.mPerDegLat).toFixed(6), (o.lon + x / (o.mPerDegLon * o.k)).toFixed(6)];
 };
 
+// ---- A real, draggable, zoomable street map (OpenStreetMap tiles) ----
+const TS = 256, MINZ = 14, MAXZ = 19;
+const TILE = (z, x, y) => `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
+const world = (lat, lon, z) => {
+  const n = TS * 2 ** z, r = lat * Math.PI / 180;
+  return [(lon + 180) / 360 * n, (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * n];
+};
+
+function slippyMap(box, { overlay, bounds, label }) {
+  // overlay(project) returns SVG markup; project([lat, lon]) -> [x, y] in container pixels.
+  box.innerHTML = `<div class="tm-tiles"></div><svg class="tm-over" aria-hidden="true"></svg>
+    <div class="tm-ctrl"><button type="button" class="btn ghost sm" data-z="1" aria-label="Zoom in">+</button><button type="button" class="btn ghost sm" data-z="-1" aria-label="Zoom out">−</button><button type="button" class="btn ghost sm" data-fit aria-label="Show the whole route">Fit</button></div>`;
+  box.tabIndex = 0;
+  box.setAttribute('role', 'region');
+  box.setAttribute('aria-label', label + '. Drag or use the arrow keys to move, plus and minus to zoom.');
+  const tiles = box.querySelector('.tm-tiles'), svg = box.querySelector('.tm-over');
+  const imgs = new Map();
+  let z = 16, cx = 0, cy = 0, tileFailed = false;
+  const size = () => [box.clientWidth, box.clientHeight];
+  const project = ([lat, lon]) => { const [W, H] = size(); const [x, y] = world(lat, lon, z); return [x - cx + W / 2, y - cy + H / 2]; };
+  const draw = () => {
+    const [W, H] = size();
+    const left = cx - W / 2, top = cy - H / 2, n = 2 ** z, want = new Set();
+    for (let tx = Math.floor(left / TS); tx <= Math.floor((left + W) / TS); tx++) {
+      for (let ty = Math.max(0, Math.floor(top / TS)); ty <= Math.min(n - 1, Math.floor((top + H) / TS)); ty++) {
+        const key = `${z}/${tx}/${ty}`; want.add(key);
+        let img = imgs.get(key);
+        if (!img) {
+          img = new Image(TS, TS); img.alt = ''; img.decoding = 'async'; img.draggable = false;
+          img.onerror = () => { img.style.visibility = 'hidden'; if (!tileFailed) { tileFailed = true; box.classList.add('tm-offline'); } };
+          img.src = TILE(z, ((tx % n) + n) % n, ty);
+          imgs.set(key, img); tiles.appendChild(img);
+        }
+        img.style.transform = `translate(${Math.round(tx * TS - left)}px, ${Math.round(ty * TS - top)}px)`;
+      }
+    }
+    for (const [key, img] of imgs) if (!want.has(key)) { img.remove(); imgs.delete(key); }
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.innerHTML = overlay(project, { offline: tileFailed });
+  };
+  let frame = 0;
+  const redraw = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(draw); };
+  const zoomTo = (nz, ax, ay) => {
+    nz = Math.max(MINZ, Math.min(MAXZ, nz));
+    if (nz === z) return;
+    const [W, H] = size(); ax ??= W / 2; ay ??= H / 2;
+    const f = 2 ** (nz - z), wx = cx - W / 2 + ax, wy = cy - H / 2 + ay;
+    cx = wx * f - ax + W / 2; cy = wy * f - ay + H / 2; z = nz; redraw();
+  };
+  const fit = () => {
+    const [W, H] = size();
+    for (z = MAXZ; z > MINZ; z--) {
+      const a = world(bounds[0][0], bounds[0][1], z), b = world(bounds[1][0], bounds[1][1], z);
+      if (Math.abs(b[0] - a[0]) < W - 70 && Math.abs(b[1] - a[1]) < H - 90) break;
+    }
+    const a = world(bounds[0][0], bounds[0][1], z), b = world(bounds[1][0], bounds[1][1], z);
+    cx = (a[0] + b[0]) / 2; cy = (a[1] + b[1]) / 2 - 12; redraw();
+  };
+  // drag (mouse, pen, one finger) and pinch (two fingers)
+  const pts = new Map(); let pinch = 0;
+  box.addEventListener('pointerdown', ev => { if (ev.target.closest('.tm-ctrl')) return; box.setPointerCapture(ev.pointerId); pts.set(ev.pointerId, [ev.clientX, ev.clientY]); box.classList.add('tm-drag'); });
+  box.addEventListener('pointermove', ev => {
+    if (!pts.has(ev.pointerId)) return;
+    const [px, py] = pts.get(ev.pointerId); pts.set(ev.pointerId, [ev.clientX, ev.clientY]);
+    if (pts.size === 2) {
+      const [p1, p2] = [...pts.values()], d = Math.hypot(p1[0] - p2[0], p1[1] - p2[1]);
+      if (!pinch) pinch = d;
+      else if (d / pinch > 1.5 || d / pinch < 0.66) { const r = box.getBoundingClientRect(); zoomTo(z + (d > pinch ? 1 : -1), (p1[0] + p2[0]) / 2 - r.left, (p1[1] + p2[1]) / 2 - r.top); pinch = d; }
+      return;
+    }
+    cx -= ev.clientX - px; cy -= ev.clientY - py; redraw();
+  });
+  const up = ev => { pts.delete(ev.pointerId); if (pts.size < 2) pinch = 0; if (!pts.size) box.classList.remove('tm-drag'); };
+  box.addEventListener('pointerup', up); box.addEventListener('pointercancel', up);
+  let wheelAt = 0;
+  box.addEventListener('wheel', ev => { ev.preventDefault(); if (Date.now() - wheelAt < 220) return; wheelAt = Date.now(); const r = box.getBoundingClientRect(); zoomTo(z + (ev.deltaY < 0 ? 1 : -1), ev.clientX - r.left, ev.clientY - r.top); }, { passive: false });
+  box.addEventListener('dblclick', ev => { const r = box.getBoundingClientRect(); zoomTo(z + 1, ev.clientX - r.left, ev.clientY - r.top); });
+  box.addEventListener('keydown', ev => {
+    const k = { ArrowLeft: [-80, 0], ArrowRight: [80, 0], ArrowUp: [0, -80], ArrowDown: [0, 80] }[ev.key];
+    if (k) { ev.preventDefault(); cx += k[0]; cy += k[1]; redraw(); }
+    else if (ev.key === '+' || ev.key === '=') zoomTo(z + 1);
+    else if (ev.key === '-') zoomTo(z - 1);
+  });
+  box.querySelector('.tm-ctrl').onclick = ev => { const b = ev.target.closest('button'); if (!b) return; if (b.dataset.fit !== undefined) fit(); else zoomTo(z + Number(b.dataset.z)); };
+  const ro = new ResizeObserver(() => redraw()); ro.observe(box);
+  fit();
+}
+
 // Renders the map into `el` for a venue. `placeId` is the venue's building on the map (or null).
 export async function venueMap(el, { placeId, venueName, venueLocation }) {
   const m = await loadMap();
@@ -57,39 +145,19 @@ export async function venueMap(el, { placeId, venueName, venueLocation }) {
     return;
   }
   const building = m.buildings.find(b => b.id === place.id);
-  const startSel = sessionStorage.getItem('uz.mapStart') || 'gate';
+  const ll = ([x, y]) => toLatLon(m, x, y).map(Number);
 
   const draw = startId => {
     const start = m.starts.find(s => s.id === startId) || m.starts[0];
-    const end = nearestNode(m, place.x, place.y);
-    const r = route(m, start.node, end);
+    const r = route(m, start.node, nearestNode(m, place.x, place.y));
     const pts = r ? [...r.pts, [place.x, place.y]] : [m.graph.nodes[start.node], [place.x, place.y]];
     const lastLeg = Math.hypot(pts[pts.length - 2][0] - place.x, pts[pts.length - 2][1] - place.y);
     const metres = Math.round(((r ? r.metres : 0) + lastLeg) / 10) * 10;
     const mins = Math.max(1, Math.round(metres / WALK_M_PER_MIN));
-    // Frame the route with some campus around it.
-    const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
-    const pad = 90;
-    let x0 = Math.min(...xs) - pad, y0 = Math.min(...ys) - pad - 50, w = Math.max(...xs) - x0 + pad, h = Math.max(...ys) - y0 + pad; // extra room above for the venue's name
-    const aspect = 16 / 10;
-    if (w / h < aspect) { const nw = h * aspect; x0 -= (nw - w) / 2; w = nw; } else { const nh = w / aspect; y0 -= (nh - h) / 2; h = nh; }
-    const s = w / 800; // stroke scale so lines look the same at any zoom
-    const [s0x, s0y] = m.graph.nodes[start.node];
-    const [lat, lon] = toLatLon(m, place.x, place.y);
-    const [slat, slon] = toLatLon(m, s0x, s0y);
-    // A few landmark names, never overlapping each other or the venue's own label.
-    const fs = 11 * s, taken = [[place.x - 70 * s, place.y - 64 * s, place.x + 70 * s, place.y - 34 * s]];
-    const seenNames = new Set();
-    const labels = m.places
-      .filter(p => p.id !== place.id && p.x > x0 + 40 * s && p.x < x0 + w - 40 * s && p.y > y0 + 20 * s && p.y < y0 + h - 20 * s && /Hall$|Library|^Faculty of|Pavilion|^Main Administration|Chapel|Union Building|Lecture Theatre/.test(p.name))
-      .filter(p => {
-        const key = p.name.toLowerCase();
-        if (seenNames.has(key)) return false;
-        const half = p.name.length * fs * 0.29, box = [p.x - half, p.y - fs, p.x + half, p.y + fs * 0.4];
-        if (taken.some(t => box[0] < t[2] && t[0] < box[2] && box[1] < t[3] && t[1] < box[3])) return false;
-        taken.push(box); seenNames.add(key); return true;
-      })
-      .slice(0, 14);
+    const line = pts.map(ll), goal = ll([place.x, place.y]), from = ll(m.graph.nodes[start.node]);
+    const lats = line.map(p => p[0]), lons = line.map(p => p[1]);
+    const bounds = [[Math.max(...lats), Math.min(...lons)], [Math.min(...lats), Math.max(...lons)]];
+    const outline = building ? building.p.map(ll) : null;
 
     el.innerHTML = String(html`
       <div class="map-head">
@@ -98,24 +166,30 @@ export async function venueMap(el, { placeId, venueName, venueLocation }) {
         </label>
         <p class="map-sum"><b>${metres >= 1000 ? (metres / 1000).toFixed(1) + ' km' : metres + ' m'}</b> · about ${mins} minute${mins === 1 ? '' : 's'} on foot to <b>${place.name}</b></p>
       </div>
-      <svg class="campus-map" viewBox="${x0} ${y0} ${w} ${h}" role="img" aria-label="Campus map: walking route from ${start.name} to ${place.name}, about ${metres} metres">
-        <rect x="${x0}" y="${y0}" width="${w}" height="${h}" class="m-ground"/>
-        ${raw(m.pitches.map(p => `<polygon class="m-pitch" points="${poly(p.p)}"/>`).join(''))}
-        ${raw(m.roads.map(r => `<polyline class="m-road${r.major ? ' major' : ''}" stroke-width="${(r.major ? 11 : 7) * s}" points="${poly(r.p)}"/>`).join(''))}
-        ${raw(m.paths.map(r => `<polyline class="m-path" stroke-width="${2 * s}" stroke-dasharray="${5 * s} ${4 * s}" points="${poly(r.p)}"/>`).join(''))}
-        ${raw(m.buildings.map(b => `<polygon class="m-bld${b.id === place.id ? ' target' : ''}" stroke-width="${1 * s}" points="${poly(b.p)}"/>`).join(''))}
-        ${raw(`<polyline class="m-route-casing" stroke-width="${9 * s}" points="${poly(pts)}"/><polyline class="m-route" stroke-width="${5 * s}" points="${poly(pts)}"/>`)}
-        ${raw(labels.map(p => `<text class="m-label" x="${p.x}" y="${p.y}" font-size="${fs}" text-anchor="middle">${esc(p.name)}</text>`).join(''))}
-        ${raw(`<circle class="m-start" cx="${s0x}" cy="${s0y}" r="${8 * s}" stroke-width="${3 * s}"/>`)}
-        ${raw(`<g transform="translate(${place.x} ${place.y}) scale(${s})"><path class="m-pin" d="M0 0c-3-9-12-14-12-24a12 12 0 0 1 24 0c0 10-9 15-12 24z"/><circle cx="0" cy="-24" r="4.5" fill="#fff"/></g>`)}
-        ${raw(`<text class="m-target-label" x="${place.x}" y="${place.y - 44 * s}" font-size="${15 * s}" text-anchor="middle" stroke-width="${4 * s}">${esc(place.name)}</text>`)}
-      </svg>
+      <div class="tilemap"></div>
       <div class="map-foot">
         <span class="map-key"><i class="k-start"></i> Start <i class="k-route"></i> Walking route <i class="k-target"></i> Venue</span>
-        <a class="btn sm" href="https://www.google.com/maps/dir/?api=1&origin=${slat},${slon}&destination=${lat},${lon}&travelmode=walking" target="_blank" rel="noopener">Open directions in Google Maps</a>
+        <a class="btn sm" href="https://www.google.com/maps/dir/?api=1&origin=${from[0]},${from[1]}&destination=${goal[0]},${goal[1]}&travelmode=walking" target="_blank" rel="noopener">Open directions in Google Maps</a>
       </div>
-      <p class="map-credit">${m.attribution}</p>`);
+      <p class="map-credit">Map © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors</p>`);
+    const path = project => line.map(p => project(p).map(v => v.toFixed(1)).join(',')).join(' ');
+    slippyMap(el.querySelector('.tilemap'), {
+      bounds,
+      label: `Map of the walking route from ${start.name} to ${place.name}, about ${metres} metres`,
+      overlay: (project, { offline }) => {
+        // If the street map cannot load (no internet), draw the campus from our own data underneath the route.
+        const base = offline ? m.buildings.map(b => `<polygon class="m-bld" points="${b.p.map(q => project(ll(q)).join(',')).join(' ')}"/>`).join('') +
+          m.roads.map(rd => `<polyline class="m-road" stroke-width="5" points="${rd.p.map(q => project(ll(q)).join(',')).join(' ')}"/>`).join('') : '';
+        const [gx, gy] = project(goal), [sx, sy] = project(from);
+        return base +
+          (outline ? `<polygon class="tm-target" points="${outline.map(p => project(p).join(',')).join(' ')}"/>` : '') +
+          `<polyline class="m-route-casing" stroke-width="9" points="${path(project)}"/><polyline class="m-route" stroke-width="5" points="${path(project)}"/>` +
+          `<circle class="m-start" cx="${sx}" cy="${sy}" r="8" stroke-width="3"/>` +
+          `<g transform="translate(${gx} ${gy})"><path class="m-pin" d="M0 0c-3-9-12-14-12-24a12 12 0 0 1 24 0c0 10-9 15-12 24z"/><circle cx="0" cy="-24" r="4.5" fill="#fff"/></g>` +
+          `<text class="m-target-label" x="${gx}" y="${gy - 42}" font-size="14" text-anchor="middle" stroke-width="4">${esc(place.name)}</text>`;
+      },
+    });
     el.querySelector('#mapStart').onchange = ev => { sessionStorage.setItem('uz.mapStart', ev.target.value); draw(ev.target.value); };
   };
-  draw(startSel);
+  draw(sessionStorage.getItem('uz.mapStart') || 'gate');
 }

@@ -22,7 +22,7 @@ Built by Jayden Mapasure and Nyasha Madoro.
 
 The student email check confirms that the email and the registration number belong together. It does not yet send a code to the inbox, because email delivery is not connected (see the outbox under Workspace).
 
-A new installation starts with UZ's departments, venues (pinned to their buildings on the campus map) and lobby screens, and one administrator. Staff and students then create their own accounts, and the administrator gives staff their roles under **Workspace → Users and roles** (or adds staff directly there).
+A new installation starts with UZ's departments, venues (pinned to their buildings on the campus map), lobby screens, one administrator, and one sample event ("UZ Events walkthrough", two days after installation, in the Great Hall) so there is something to open and try. Staff and students then create their own accounts, and the administrator gives staff their roles under **Workspace → Users and roles** (or adds staff directly there).
 
 **Render's free plan has no permanent disk.** Every restart, redeploy, or sleep after 15 idle minutes starts the site afresh from the state above, and everything created is lost. For continued use, move to a paid instance, add a persistent disk mounted at `/var/data`, and set `DATA_DIR=/var/data`. Until then, use **Workspace → Backups → Download** to keep a copy.
 
@@ -40,7 +40,11 @@ A new installation starts with UZ's departments, venues (pinned to their buildin
 
 After signing in, the calendar is the whole page: no search box or filters, and it fits the screen. Clicking an event opens its details in a window over the calendar, with **Getting there**: a campus map with the walking route to the venue's building, its distance and walking time, a choice of starting point (main entrance on Churchill Avenue, UZ bus terminal, Main Library) and a button that opens the same directions in Google Maps.
 
-The map is drawn from OpenStreetMap data (`public/assets/campus-map.json`, © OpenStreetMap contributors, ODbL), built by `tools/build-campus-map.mjs`. Administrators choose each venue's building under **Workspace → Venues**. Venues not on the map (Innovation Hub, Parirenyatwa Lecture Hall) show a Google Maps search link instead until a building is chosen.
+The map is the live OpenStreetMap street map (tiles from tile.openstreetmap.org, which the Content-Security-Policy allows; drag, zoom, pinch or use the keyboard). The walking route is worked out on campus paths from OpenStreetMap data in `public/assets/campus-map.json` (© OpenStreetMap contributors, ODbL), built by `tools/build-campus-map.mjs`. If the street map cannot load, the campus buildings and roads are drawn from that file instead. For heavy production use, move to a commercial tile provider in line with the OpenStreetMap tile usage policy. Administrators choose each venue's building under **Workspace → Venues**. Venues not on the map (Innovation Hub, Parirenyatwa Lecture Hall) show a Google Maps search link instead until a building is chosen.
+
+## Forms and buttons
+
+Every form fits on the screen. When a long form does not fit (the event form on most screens, create account on short ones), it shows one section at a time with **Back** and **Next**; on large screens it shows whole. Adding users and venues happens in pop-ups. Any button that sends something to the server shows a spinner until it has finished.
 
 ## Run it locally
 
