@@ -69,7 +69,7 @@ export async function eventDetail({ el, params, query }) {
       ${e.status === 'cancelled' ? html`<div class="banner cancelled"><b>This event has been cancelled.</b>${lastCancel && lastCancel.note ? html`<p>${lastCancel.note}</p>` : ''}</div>` : ''}
       ${e.status === 'postponed' ? html`<div class="banner postponed"><b>This event has been postponed. A new date will be announced.</b>${lastCancel && lastCancel.note ? html`<p>${lastCancel.note}</p>` : ''}</div>` : ''}
       ${!['published', 'postponed', 'cancelled'].includes(e.status) ? html`<div class="banner info"><b>Preview: not public.</b><p>This event is “${e.status}”. Only staff with access can see this page.</p></div>` : ''}
-      ${!e.isPublic ? html`<div class="banner info"><b>Internal event</b><p>Visible to signed-in university staff only.</p></div>` : ''}
+      ${e.audienceGroup === 'staff' ? html`<div class="banner info"><b>Staff only</b><p>Only staff can see this event.</p></div>` : e.audienceGroup === 'students' ? html`<div class="banner info"><b>Students only</b><p>This event is for students.</p></div>` : ''}
       ${isPast && e.status !== 'cancelled' ? html`<div class="banner info"><b>This event has ended.</b><p>It is kept in the <a href="#/archive">events archive</a> for the university record.</p></div>` : ''}
       <figure class="cover">${photo(e)}</figure>
       ${e.summary ? html`<p class="lede">${e.summary}</p>` : ''}
@@ -355,13 +355,14 @@ export async function myEvents({ el }) {
   put(el, html`
   <div class="page-head"><div class="wrap">
     <div>
-      <div class="eyebrow">${waiting ? 'Staff' : 'Student'}${me.regNumber ? ` · ${me.regNumber}` : ''}</div>
+      <div class="eyebrow">${{ student: 'Student', staff: 'Staff', organiser: 'Organiser', approver: 'Approver', admin: 'Administrator' }[me.role] || 'Staff'}${me.regNumber ? ` · ${me.regNumber}` : ''}</div>
       <h1 style="margin-top:8px">Welcome, ${me.name.split(' ')[0]}</h1>
       <p class="muted" style="margin:6px 0 0">${dept ? dept.name : ''}</p>
     </div>
   </div></div>
   <div class="wrap" style="padding-top:28px;padding-bottom:56px">
     ${waiting ? html`<div class="banner info" role="status"><b>Your account is waiting for a role.</b><p>An administrator will make you an organiser, approver or administrator. Once they have, reload this page and your workspace opens. Until then you can browse and save events.</p></div>` : ''}
+    <label class="check remind-pref"><input type="checkbox" id="remindPref" ${me.emailReminders !== false ? raw('checked') : ''}><span><b>Email me event reminders</b><br><span class="muted small">Sent to ${me.email} when an event you can see has a reminder.</span></span></label>
     <section style="margin-bottom:40px">
       <h2 style="margin-bottom:14px">Saved events</h2>
       ${savedOnce.length ? html`<div>${savedOnce.map(e => html`<div class="saved-row">${evRow(e, { showDate: true, thumb: true })}<button class="btn ghost sm" data-unsave="${e.id}" aria-label="Remove ${e.title} from saved events">Remove</button></div>`)}</div>`
@@ -372,6 +373,10 @@ export async function myEvents({ el }) {
       ${mine.length ? agenda(mine, t) : html`<p class="muted">Nothing scheduled yet. See <a href="#/calendar">the full calendar</a>.</p>`}
     </section>
   </div>`);
+  el.querySelector('#remindPref').onchange = async ev => {
+    try { await api('/api/me', { method: 'PUT', body: { emailReminders: ev.target.checked } }); await refreshMe(); toast(ev.target.checked ? 'Reminder emails are on.' : 'Reminder emails are off.'); }
+    catch (x) { ev.target.checked = !ev.target.checked; toast(x.message, true); }
+  };
   el.onclick = async ev => {
     const b = ev.target.closest('[data-unsave]');
     if (!b) return;

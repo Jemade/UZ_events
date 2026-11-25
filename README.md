@@ -35,12 +35,36 @@ A new installation starts with UZ's departments, venues (pinned to their campus 
 | `PORT`, `HOST` | Set automatically on Render |
 | `PUBLIC_URL` | Address used in QR codes and for secure cookies; defaults to Render's own address |
 | `DATA_DIR` | Where data, photos and backups are stored (default `./data`) |
+| `GMAIL_SENDER`, `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN` | Gmail for reminder emails (see Setting up Gmail) |
 
 ## Calendar and directions
 
 After signing in, the calendar is the whole page: no search box or filters, and it fits the screen. Clicking an event opens its details in a window over the calendar, with a map-pin icon beside the venue that opens directions in Google Maps. The link gives Google Maps the venue's building as the destination and no starting point, so Google Maps starts from wherever the person is (with their permission) and gives turn-by-turn directions.
 
 Building positions come from OpenStreetMap (`public/assets/campus-places.json`, © OpenStreetMap contributors, ODbL), built by `tools/build-campus-map.mjs`. Administrators choose each venue's building under **Workspace → Venues**. Venues with no building chosen (Innovation Hub, Parirenyatwa Lecture Hall) open a Google Maps search for the venue's name instead.
+
+## Who sees an event, and reminder emails
+
+Organisers, approvers and administrators can all post events. Each event is for **Everyone**, **Staff only** or **Students only** (step "Audience and contact"). Students never see staff-only events, staff waiting for a role never see student-only events, and staff with a workspace role see everything. The open calendar feed and lobby screens show only events for everyone.
+
+The last step, **Reminder email**, sets an optional date and time (or "1 day before" / "2 hours before"). Once the event is approved and that time comes, everyone the event is for gets one email with the time, place, a Google Maps directions link and a link to the event. Changing the time sends it again. Anyone can turn reminders off with **Email me event reminders** on their Events page. The "your event was approved / returned" notices go out by email too.
+
+The server checks every minute. Emails wait in an outbox (**Workspace → Email**, administrators) and are sent a few at a time; failures are retried after 2, 4, 8, 16 and 32 minutes.
+
+### Setting up Gmail
+
+Render's free plan blocks email (SMTP) ports, so the system sends through the **Gmail API** over HTTPS instead. One-time setup, done by whoever owns the sending Gmail account:
+
+1. Go to console.cloud.google.com, create a project (e.g. "UZ Events") and enable the **Gmail API**.
+2. **Google Auth Platform / OAuth consent screen**: External, app name "UZ Events", your email as support and developer contact. Add the scope `https://www.googleapis.com/auth/gmail.send`. Then **Publish app** (In production): in Testing mode Google cancels the permission after 7 days. Google will warn that the app is unverified; that is expected for a private tool.
+3. **Credentials → Create credentials → OAuth client ID**, type **Desktop app**. Copy the client ID and client secret.
+4. On your computer, in this project: `GMAIL_CLIENT_ID=... GMAIL_CLIENT_SECRET=... node scripts/gmail-token.mjs`. Open the link, sign in with the sending Gmail account, allow. It prints `GMAIL_REFRESH_TOKEN`.
+5. In Render, **uz-events → Environment**, add `GMAIL_SENDER` (the Gmail address), `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET` and `GMAIL_REFRESH_TOKEN`, and save (Render redeploys).
+6. Sign in as administrator, **Workspace → Email → Send me a test email**.
+
+Treat the client secret and refresh token like passwords. A personal Gmail account can send to about 500 people a day (Google Workspace accounts about 2,000); larger reminders continue the next day.
+
+**On Render's free plan** the site sleeps after 15 minutes without visitors and does not check reminders while asleep, so a reminder goes out when the site next wakes. The free plan also starts afresh on every restart. For reminders on time, use a paid instance (always on) with a persistent disk.
 
 ## Forms and buttons
 
@@ -50,7 +74,7 @@ Every form fits on the screen. When a long form does not fit (the event form on 
 
 ```bash
 npm start          # http://localhost:3000 — no npm install needed, zero dependencies, Node 18+
-npm test           # 19 automated tests
+npm test           # 25 automated tests
 ```
 
 Locally the site starts with sample data. All sample accounts use the password `UZevents2026`: `admin@uz.ac.zw`, `approver.reg@uz.ac.zw` (central approver), `approver.eng@uz.ac.zw`, `organiser.eng@uz.ac.zw`, `organiser.sa@uz.ac.zw`, the student `R2400001`, and `chipo.mlambo@example.com` (staff waiting for a role). To start again, stop the server and delete `data/`.

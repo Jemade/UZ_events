@@ -7,6 +7,7 @@ const deptName = id => (state.meta.departments.find(d => d.id === id) || {}).nam
 const deptShort = id => (state.meta.departments.find(d => d.id === id) || {}).short || id;
 const venueName = id => (state.meta.venues.find(v => v.id === id) || {}).name || id;
 const rerender = () => render();
+const GROUP_LABEL = { everyone: 'Everyone (staff and students)', staff: 'Staff only', students: 'Students only' };
 
 async function counts() {
   if (!can('approver')) return {};
@@ -29,8 +30,9 @@ async function layout(el, path, content) {
       ${a('/work/events/new', 'plus', 'Submit an event')}
       ${a('/work/messages', 'chat', 'Welcome messages')}
       ${a('/work/screens', 'screen', 'Lobby screens')}
+      ${a('/me', 'cal', 'Saved events and reminders')}
       ${can('approver') ? html`<h2>Approvals</h2>${a('/work/review', 'inbox', 'Review queue', c.review)}${a('/work/manage', 'cal', 'Published events')}` : ''}
-      ${can('admin') ? html`<h2>Administration</h2>${a('/work/users', 'shield', 'Users and roles', c.waiting)}${a('/work/venues', 'pin', 'Venues')}${a('/work/site', 'link', 'Site address')}${a('/work/audit', 'file', 'Audit log')}${a('/work/backups', 'db', 'Backups')}` : ''}
+      ${can('admin') ? html`<h2>Administration</h2>${a('/work/users', 'shield', 'Users and roles', c.waiting)}${a('/work/venues', 'pin', 'Venues')}${a('/work/email', 'mail', 'Email')}${a('/work/site', 'link', 'Site address')}${a('/work/audit', 'file', 'Audit log')}${a('/work/backups', 'db', 'Backups')}` : ''}
     </nav>
     <div class="main" id="main">${content}</div>
     <nav class="bottombar" aria-label="Workspace shortcuts">
@@ -252,7 +254,7 @@ export async function eventForm({ el, path, params }) {
   const central = me.role === 'admin' || (me.role === 'approver' && me.department === 'reg');
   const isReviewerEdit = e && e.canReview && e.createdBy !== me.id;
   const t = today();
-  const v = e || { title: '', summary: '', description: '', category: state.meta.categories[0], departmentId: me.department, venueId: '', start: `${D.addDays(t, 7)}T10:00`, end: `${D.addDays(t, 7)}T12:00`, audience: 'Staff, students and invited guests', contactName: me.name, contactEmail: me.email, isPublic: true, recurrence: { freq: 'none', until: null } };
+  const v = e || { title: '', summary: '', description: '', category: state.meta.categories[0], departmentId: me.department, venueId: '', start: `${D.addDays(t, 7)}T10:00`, end: `${D.addDays(t, 7)}T12:00`, audience: 'Staff, students and invited guests', contactName: me.name, contactEmail: me.email, isPublic: true, audienceGroup: 'everyone', remindAt: null, recurrence: { freq: 'none', until: null } };
   const deptLocked = !central && !isReviewerEdit;
 
   const main = await layout(el, path, html`
@@ -297,7 +299,17 @@ export async function eventForm({ el, path, params }) {
             <label class="field"><span>Contact name</span><input class="input" name="contactName" required maxlength="100" value="${v.contactName}"></label>
             <label class="field"><span>Contact email</span><input class="input" type="email" name="contactEmail" required maxlength="120" value="${v.contactEmail}"></label>
           </div>
-          <label class="check"><input type="checkbox" name="isPublic" ${v.isPublic ? raw('checked') : ''}><span><b>Show on the public calendar</b><br><span class="muted small">Untick for internal events (for example Senate). They will only be visible to signed-in staff.</span></span></label>
+          <label class="field"><span>Who can see it</span><select class="input" name="audienceGroup">${Object.entries(GROUP_LABEL).map(([k, l]) => html`<option value="${k}" ${(v.audienceGroup || (v.isPublic === false ? 'staff' : 'everyone')) === k ? raw('selected') : ''}>${l}</option>`)}</select><small>Only these people see it on the calendar and get its reminder email.</small></label>
+        </fieldset>
+        <fieldset><legend>Reminder email</legend>
+          <label class="field"><span>Send a reminder</span><select class="input" name="remindWhen">
+            <option value="none" ${!v.remindAt ? raw('selected') : ''}>No reminder email</option>
+            <option value="1440">1 day before</option>
+            <option value="120">2 hours before</option>
+            <option value="custom" ${v.remindAt ? raw('selected') : ''}>On a date and time I choose</option>
+          </select></label>
+          <label class="field" id="remindF"><span>Reminder date and time</span><input class="input" type="datetime-local" name="remindAt" value="${v.remindAt || ''}"><small>Harare time. Everyone the event is for gets one email at this time, once the event is approved.</small></label>
+          ${e && e.remindedAt ? html`<p class="small muted">A reminder was sent ${D.stamp(e.remindedAt)}. Choosing a new time sends it again.</p>` : ''}
         </fieldset>
         ${live ? html`<fieldset><legend>Reason for the change</legend><label class="field"><span>Change note</span><textarea class="input" name="changeNote" rows="3" maxlength="300" placeholder="e.g. Moved to the Great Hall to accommodate more guests"></textarea><small>Required when changing the title, time or venue of a published event. Shown publicly under “Updates”.</small></label></fieldset>` : ''}
         <div class="form-actions">
@@ -321,7 +333,9 @@ export async function eventForm({ el, path, params }) {
     title: f.elements.title.value, summary: f.elements.summary.value, description: f.elements.description.value, category: f.elements.category.value,
     departmentId: f.elements.departmentId.value, venueId: f.elements.venueId.value,
     start: `${f.elements.sd.value}T${f.elements.st.value}`, end: `${f.elements.ed.value}T${f.elements.et.value}`,
-    audience: f.elements.audience.value, contactName: f.elements.contactName.value, contactEmail: f.elements.contactEmail.value, isPublic: f.elements.isPublic.checked,
+    audience: f.elements.audience.value, contactName: f.elements.contactName.value, contactEmail: f.elements.contactEmail.value,
+    audienceGroup: f.elements.audienceGroup.value, isPublic: f.elements.audienceGroup.value === 'everyone',
+    remindAt: f.elements.remindWhen.value === 'none' ? null : (f.elements.remindAt.value || '').slice(0, 16) || null,
     recurrence: { freq: f.elements.freq.value, until: f.elements.freq.value === 'none' ? null : f.elements.until.value },
     changeNote: f.elements.changeNote ? f.elements.changeNote.value : '',
     coverImage: f.elements.coverImage.value || null, coverAlt: f.elements.coverAlt.value,
@@ -329,6 +343,7 @@ export async function eventForm({ el, path, params }) {
   const preview = () => {
     const d = read();
     main.querySelector('#untilF').style.display = d.recurrence.freq === 'none' ? 'none' : '';
+    main.querySelector('#remindF').style.display = f.elements.remindWhen.value === 'none' ? 'none' : '';
     const ok = /T\d\d:\d\d$/.test(d.start) && d.start.length === 16;
     const ph = main.querySelector('[data-photo="coverImage"]');
     ph.dataset.fallback = String(categoryArt(d.category));
@@ -336,7 +351,7 @@ export async function eventForm({ el, path, params }) {
     main.querySelector('#pv').innerHTML = String(html`<div class="cover" style="margin-bottom:0">${d.coverImage ? html`<img src="${d.coverImage}" alt="">` : categoryArt(d.category)}</div><div class="agenda"><div class="ev-row" data-cat="${d.category}" style="grid-template-columns:1fr">
       <span class="time">${ok ? `${D.medium(d.start)} · ${d.start.slice(11)}–${d.end.slice(11)}` : 'Date to be set'}</span>
       <span><span class="t">${d.title || 'Event title'}</span><span class="meta">${d.venueId ? venueName(d.venueId) : 'Venue'} · ${deptShort(d.departmentId)}</span></span>
-      <span>${tag(d.category)} ${d.isPublic ? '' : html`<span class="pill draft">Internal</span>`}</span>
+      <span>${tag(d.category)} ${d.audienceGroup === 'everyone' ? '' : html`<span class="pill draft">${GROUP_LABEL[d.audienceGroup]}</span>`}</span>
     </div></div>${d.summary ? html`<p class="small muted" style="margin-top:8px">${d.summary}</p>` : ''}`);
   };
   let timer;
@@ -355,6 +370,17 @@ export async function eventForm({ el, path, params }) {
   f.addEventListener('input', () => { preview(); });
   wirePhotos(main, preview);
   f.addEventListener('change', ev => { preview(); if (['venueId', 'sd', 'st', 'ed', 'et', 'freq', 'until'].includes(ev.target.name)) checkConflicts(); });
+  // "1 day before" / "2 hours before" fill in the date and time from the start, which can then be adjusted.
+  const fillReminder = () => {
+    const w = f.elements.remindWhen.value;
+    if (/^\d+$/.test(w) && f.elements.sd.value && f.elements.st.value) {
+      const at = new Date(Date.parse(`${f.elements.sd.value}T${f.elements.st.value}:00Z`) - Number(w) * 60000).toISOString().slice(0, 16);
+      f.elements.remindAt.value = at;
+    }
+    preview();
+  };
+  f.elements.remindWhen.addEventListener('change', fillReminder);
+  ['sd', 'st'].forEach(n => f.elements[n].addEventListener('change', () => { if (/^\d+$/.test(f.elements.remindWhen.value)) fillReminder(); }));
   // keep end date in step with start date
   f.elements.sd.addEventListener('change', () => { if (f.elements.ed.value < f.elements.sd.value) f.elements.ed.value = f.elements.sd.value; });
   preview(); checkConflicts();
@@ -400,7 +426,8 @@ export async function review({ el, path }) {
           <dt>Venue</dt><dd>${e.venueName}</dd>
           <dt>Department</dt><dd>${e.departmentName}</dd>
           <dt>Submitted by</dt><dd>${e.createdByName} · ${D.stamp(e.submittedAt)}</dd>
-          <dt>Visibility</dt><dd>${e.isPublic ? 'Public calendar' : 'Internal (staff only)'}</dd>
+          <dt>Who can see it</dt><dd>${GROUP_LABEL[e.audienceGroup] || 'Everyone'}</dd>
+          <dt>Reminder email</dt><dd>${e.remindAt ? D.stamp(e.remindAt) : 'None'}</dd>
         </dl>
         ${conflictBox(e.conflicts)}
       </div>
@@ -465,7 +492,7 @@ export async function manage({ el, path, query }) {
     <div class="tabs">${Object.keys(T).map(k => html`<a href="#/work/manage${qs({ tab: k, q: query.q })}" class="${tab === k ? 'on' : ''}">${labels[k]}<span>${events.filter(T[k]).length}</span></a>`)}</div>
     <div class="panel table-wrap">${list.length ? html`<table class="t"><thead><tr><th>Event</th><th>When</th><th>Venue</th><th>Status</th><th></th></tr></thead><tbody>
       ${list.map(e => html`<tr>
-        <td class="title"><a href="#/event/${e.id}">${e.title}</a><br><span class="small muted">${e.departmentShort} · ${e.views} views${e.isPublic ? '' : ' · internal'}</span></td>
+        <td class="title"><a href="#/event/${e.id}">${e.title}</a><br><span class="small muted">${e.departmentShort} · ${e.views} views${e.audienceGroup && e.audienceGroup !== 'everyone' ? ' · ' + GROUP_LABEL[e.audienceGroup].toLowerCase() : ''}${e.remindAt ? ' · reminder ' + D.stamp(e.remindAt) : ''}</span></td>
         <td class="small">${D.medium(e.start)}<br>${D.time(e.start)}–${D.time(e.end)}</td>
         <td class="small">${e.venueName}${e.conflicts.length ? html`<br><span class="pill submitted" title="${e.conflicts.map(c => c.title).join(', ')}">Clash</span>` : ''}</td>
         <td>${pill(e.status)}</td>
@@ -774,6 +801,29 @@ export async function sitePhotos({ el, path }) {
       toast('Saved.');
       rerender();
     } catch (err) { toast(err.message, true); }
+  };
+}
+
+// ---------------- EMAIL (Gmail) ----------------
+export async function email({ el, path }) {
+  const { outbox, deliveryEnabled, sender, counts } = await api('/api/admin/outbox');
+  const STATUS = { pending: ['submitted', 'Waiting'], sent: ['published', 'Sent'], failed: ['rejected', 'Failed'] };
+  const main = await layout(el, path, html`
+    ${head('Email', 'Reminder emails and approval notices are sent through Gmail.', html`<button class="btn" id="testMail" ${deliveryEnabled ? '' : raw('disabled')}>${icon.mail} Send me a test email</button>`)}
+    <section class="panel"><div class="pad">
+      ${deliveryEnabled
+        ? html`<p style="margin:0"><span class="pill published">Gmail connected</span> Emails are sent from <b>${sender}</b>, checked every minute.</p>`
+        : html`<p style="margin:0 0 6px"><span class="pill draft">Not connected</span> Gmail is not set up, so emails wait here and are not sent.</p>
+          <p class="small muted" style="margin:0">Add <code>GMAIL_SENDER</code>, <code>GMAIL_CLIENT_ID</code>, <code>GMAIL_CLIENT_SECRET</code> and <code>GMAIL_REFRESH_TOKEN</code> to the server's environment settings and restart. The README explains how to get them.</p>`}
+      <p class="small muted" style="margin:10px 0 0">${counts.pending} waiting · ${counts.sent} sent · ${counts.failed} failed</p>
+    </div></section>
+    <div class="panel table-wrap">${outbox.length ? html`<table class="t"><thead><tr><th>To</th><th>Subject</th><th>Status</th><th>Time</th></tr></thead><tbody>
+      ${outbox.map(o => html`<tr><td class="small">${o.to}</td><td class="small">${o.subject}${o.error ? html`<br><span class="muted">${o.error}</span>` : ''}</td><td><span class="pill ${(STATUS[o.status] || STATUS.pending)[0]}">${(STATUS[o.status] || STATUS.pending)[1]}</span></td><td class="small" style="white-space:nowrap">${D.stamp(o.sentAt || o.createdAt)}</td></tr>`)}
+      </tbody></table>` : html`<div class="pad">${empty('mail', 'No emails yet', 'Reminder emails appear here when an event’s reminder time comes.', '', 2)}</div>`}</div>`);
+  const t = main.querySelector('#testMail');
+  if (t) t.onclick = async () => {
+    try { const r = await api('/api/admin/test-email', { method: 'POST', body: {} }); toast(`Test email sent to ${r.to}. Check the inbox.`); }
+    catch (err) { toast(err.message, true); }
   };
 }
 

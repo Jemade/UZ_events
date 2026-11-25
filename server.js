@@ -11,6 +11,8 @@ const T = require('./lib/time');
 
 const config = require('./lib/config').loadConfig();
 const B = require('./lib/backup');
+const M = require('./lib/mail');
+const MAIL = M.mailConfig();
 const PORT = config.port;
 const DATA_DIR = config.dataDir;
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -103,7 +105,7 @@ function audit(user, action, target, detail = '') {
 
 const userName = id => (db.users.find(u => u.id === id) || {}).name || 'Unknown user';
 const publicUser = u => ({ id: u.id, name: u.name, email: u.email, role: u.role, department: u.department, active: u.active, createdAt: u.createdAt,
-  regNumber: u.regNumber ? u.regNumber.toUpperCase() : undefined, saved: u.saved || [] });
+  regNumber: u.regNumber ? u.regNumber.toUpperCase() : undefined, saved: u.saved || [], emailReminders: u.emailReminders !== false });
 // Students sign in with their registration number (any case, e.g. r2420211 or R2420211);
 // their email must be that number at the student domain, e.g. r2420211@students.uz.ac.zw.
 const STUDENT_DOMAIN = 'students.uz.ac.zw';
@@ -130,9 +132,18 @@ function canReview(u, e) {
   return u.role === 'approver' && (u.department === 'reg' || u.department === e.departmentId);
 }
 const LIVE = ['published', 'postponed', 'cancelled'];
+// Who an event is for: everyone, staff only, or students only. Staff with a workspace role see all of them.
+const GROUPS = ['everyone', 'staff', 'students'];
+const groupOf = e => (GROUPS.includes(e.audienceGroup) ? e.audienceGroup : e.isPublic === false ? 'staff' : 'everyone');
+function inAudience(user, e) {
+  const g = groupOf(e);
+  if (g === 'everyone') return true;
+  if (!user) return false;
+  if (A.atLeast(user, 'organiser')) return true;
+  return g === 'staff' ? user.role !== 'student' : user.role === 'student';
+}
 function canView(u, e) {
-  // Internal (non-public) events are for staff accounts only; students see the open events.
-  if (LIVE.includes(e.status)) return e.isPublic || (!!u && u.role !== 'student');
+  if (LIVE.includes(e.status)) return inAudience(u, e);
   return !!u && (e.createdBy === u.id || canReview(u, e));
 }
 
@@ -183,7 +194,7 @@ function eventOut(e, u, extra = {}) {
     departmentId: e.departmentId, departmentName: dept ? dept.name : '', departmentShort: dept ? dept.short : '',
     venueId: e.venueId, venueName: venue ? venue.name : '', venueLocation: venue ? venue.location : '', venuePlace: venue ? venue.mapPlace || null : null,
     start: e.start, end: e.end, audience: e.audience, contactName: e.contactName, contactEmail: e.contactEmail,
-    isPublic: e.isPublic, recurrence: e.recurrence, status: e.status, updatedAt: e.updatedAt,
+    isPublic: e.isPublic, audienceGroup: groupOf(e), recurrence: e.recurrence, status: e.status, updatedAt: e.updatedAt,
     coverImage: e.coverImage || null, coverAlt: e.coverAlt || '',
     history: e.history
       .filter(h => staff || PUBLIC_ACTIONS.includes(h.action))
@@ -194,6 +205,7 @@ function eventOut(e, u, extra = {}) {
     Object.assign(o, {
       createdBy: e.createdBy, createdByName: userName(e.createdBy), createdAt: e.createdAt,
       submittedAt: e.submittedAt, decidedAt: e.decidedAt, reviewNote: e.reviewNote, views: e.views,
+      remindAt: e.remindAt || null, remindedAt: e.remindedAt || null,
       canEdit: canEdit(u, e), canReview: canReview(u, e),
     });
   }
@@ -233,8 +245,9 @@ function validateEvent(b, u) {
     audience: str(b.audience, 'Audience', { max: 140 }) || 'Open to all',
     contactName: str(b.contactName, 'Contact name', { max: 100, required: true }),
     contactEmail: str(b.contactEmail, 'Contact email', { max: 120, required: true }),
-    isPublic: b.isPublic !== false,
   };
+  e.audienceGroup = GROUPS.includes(b.audienceGroup) ? b.audienceGroup : b.isPublic === false ? 'staff' : 'everyone';
+  e.isPublic = e.audienceGroup === 'everyone'; // the open calendar feed and lobby screens show only these
   if (!EMAIL.test(e.contactEmail)) throw bad('Contact email is not a valid address.');
   if (!db.categories.includes(b.category)) throw bad('Choose a valid category.');
   e.category = b.category;
@@ -260,6 +273,10 @@ function validateEvent(b, u) {
   e.recurrence = { freq, until };
   e.coverImage = image(b.coverImage, 'Cover photo');
   e.coverAlt = str(b.coverAlt, 'Photo description', { max: 140 });
+  // Optional reminder email, sent at this date and time to everyone the event is for.
+  e.remindAt = b.remindAt ? String(b.remindAt).slice(0, 16) : null;
+  if (e.remindAt && !T.isValid(e.remindAt)) throw bad('Reminder must be a valid date and time.');
+  if (e.remindAt && e.remindAt >= b.start) throw bad('The reminder must be sent before the event starts.');
   return e;
 }
 
@@ -416,7 +433,27 @@ route('POST', '/api/updates/read', ({ u, body }) => {
 });
 route('GET', '/api/admin/outbox', ({ u }) => {
   need(u, 'admin');
-  return { outbox: db.outbox, deliveryEnabled: false };
+  const count = st => db.outbox.filter(o => o.status === st).length;
+  return { outbox: db.outbox.slice(-200).reverse(), deliveryEnabled: MAIL.configured, sender: MAIL.sender || null,
+    counts: { pending: count('pending'), sent: count('sent'), failed: count('failed') } };
+});
+// Sends one email straight away to the administrator, to check the Gmail settings.
+route('POST', '/api/admin/test-email', async ({ u }) => {
+  need(u, 'admin');
+  if (!MAIL.configured) throw bad('Gmail is not set up yet. Add GMAIL_SENDER, GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET and GMAIL_REFRESH_TOKEN to the server settings, then restart.');
+  try {
+    await mailer(MAIL, { to: u.email, subject: 'UZ Events: test email', text: `Hello ${u.name},\n\nThis is a test email from UZ Events. Gmail sending is working.\n\n${siteUrl()}` });
+  } catch (err) { throw bad(err.message); }
+  audit(u, 'mail.test', u.email);
+  saveSoon();
+  return { ok: true, to: u.email };
+});
+// Anyone signed in can turn reminder emails on or off for themselves.
+route('PUT', '/api/me', ({ member, body }) => {
+  needMember(member);
+  if (body.emailReminders !== undefined) member.emailReminders = !!body.emailReminders;
+  store.save();
+  return { user: publicUser(member) };
 });
 
 route('POST', '/api/login', async ({ req, body, res }) => {
@@ -532,11 +569,12 @@ route('PUT', '/api/events/:id', ({ u, p, body }) => {
   if (live && changes.some(c => SIGNIFICANT.includes(c)) && !note) {
     throw bad('This is a significant change to a published event. Please add a short note explaining it. It will be shown publicly.');
   }
-  // A new photo or its description is not news: keep it out of the public "Updates" list.
-  const photoOnly = changes.every(c => ['coverImage', 'coverAlt'].includes(c));
+  // A new photo, its description or the reminder time is not news: keep it out of the public "Updates" list.
+  const quiet = changes.every(c => ['coverImage', 'coverAlt', 'remindAt'].includes(c));
+  if (changes.includes('remindAt')) e.remindedAt = null; // a new reminder time sends again
   Object.assign(e, v, { updatedAt: now });
-  e.history.push({ at: now, by: u.id, action: live && !photoOnly ? 'amended' : 'edited', note, changes });
-  if (live) notifyOwner(u, e, 'event', photoOnly ? 'given a new photo' : 'amended', note);
+  e.history.push({ at: now, by: u.id, action: live && !quiet ? 'amended' : 'edited', note, changes });
+  if (live) notifyOwner(u, e, 'event', quiet ? (changes.every(c => c === 'remindAt') ? 'given a new reminder time' : 'given a new photo') : 'amended', note);
   audit(u, live ? 'event.amended' : 'event.edited', e.id, changes.join(', '));
   store.save();
   return { event: eventOut(e, u), conflicts: findConflicts(e, e.id) };
@@ -899,6 +937,78 @@ route('PUT', '/api/settings', ({ u, body }) => {
   return { settings: db.settings };
 });
 
+// ---------- reminder emails ----------
+// Every minute: published events whose reminder time has come get one email per person they are for
+// (who has not turned reminders off); then waiting emails are sent through Gmail, a few at a time.
+let mailer = M.sendMail;
+const siteUrl = () => (db.settings.publicUrl || config.publicUrl || `http://localhost:${PORT}`).replace(/\/+$/, '');
+const later = minutes => T.fmt(new Date(T.parse(T.harareNow()).getTime() + minutes * 60000));
+function reminderText(e, user) {
+  const venue = db.venues.find(v => v.id === e.venueId) || {};
+  const d = T.parse(e.start);
+  const day = d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+  let place = null;
+  try { place = JSON.parse(fs.readFileSync(path.join(PUBLIC_DIR, 'assets', 'campus-places.json'), 'utf8')).places.find(p => p.id === venue.mapPlace); } catch {}
+  return [
+    `Hello ${user.name},`, '',
+    `This is a reminder about an event at the University of Zimbabwe.`, '',
+    e.title,
+    `When:  ${day}, ${e.start.slice(11)} to ${e.end.slice(11)}`,
+    `Where: ${venue.name || ''}${venue.location ? ', ' + venue.location : ''}`,
+    e.summary ? `\n${e.summary}` : '',
+    '', `Details: ${siteUrl()}/#/event/${e.id}`,
+    place ? `Directions: https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lon}&travelmode=walking` : '',
+    '', '--', 'UZ Events, University of Zimbabwe',
+    `To stop reminder emails, untick "Email me event reminders" on your Events page: ${siteUrl()}/#/me`,
+  ].filter(line => line !== null).join('\n').replace(/\n{3,}/g, '\n\n');
+}
+function runReminders() {
+  const now = T.harareNow();
+  let queued = 0;
+  for (const e of db.events) {
+    if (!e.remindAt || e.remindedAt || e.status !== 'published' || e.remindAt > now || e.end < now) continue;
+    const people = db.users.filter(x => x.active && x.emailReminders !== false && inAudience(x, e));
+    for (const x of people) {
+      db.outbox.push({ id: store.nextId('o'), kind: 'reminder', eventId: e.id, userId: x.id, to: x.email,
+        subject: `Reminder: ${e.title}, ${T.parse(e.start).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })} at ${e.start.slice(11)}`,
+        text: reminderText(e, x), href: `#/event/${e.id}`, createdAt: now, status: 'pending', attempts: 0, sentAt: null, nextAt: null, error: null });
+    }
+    e.remindedAt = now;
+    queued += people.length;
+    audit(null, 'event.reminder', e.id, `${people.length} reminder email${people.length === 1 ? '' : 's'} queued`);
+  }
+  if (db.outbox.length > 5000) db.outbox.splice(0, db.outbox.length - 5000);
+  if (queued) store.save();
+  return queued;
+}
+let delivering = false;
+async function deliver(max = 20) {
+  if (!MAIL.configured || delivering) return 0;
+  delivering = true;
+  let sent = 0;
+  try {
+    const now = T.harareNow();
+    const due = db.outbox.filter(o => o.status === 'pending' && (!o.nextAt || o.nextAt <= now)).slice(0, max);
+    for (const o of due) {
+      try {
+        await mailer(MAIL, { to: o.to, subject: o.subject, text: o.text || o.subject });
+        Object.assign(o, { status: 'sent', sentAt: T.harareNow(), error: null });
+        sent++;
+      } catch (err) {
+        o.attempts = (o.attempts || 0) + 1;
+        o.error = String(err.message).slice(0, 300);
+        if (err.permanent || o.attempts >= 6) o.status = 'failed';
+        else o.nextAt = later(2 ** o.attempts); // 2, 4, 8, 16, 32 minutes
+        if (err.quota) break; // Gmail's sending limit: try the rest later
+      }
+    }
+  } finally {
+    delivering = false;
+    saveSoon();
+  }
+  return sent;
+}
+
 // ---------- HTTP server ----------
 const MIME = { '.webp': 'image/webp', '.woff2': 'font/woff2', '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.json': 'application/json' };
 const SECURITY_HEADERS = {
@@ -961,7 +1071,11 @@ const server = http.createServer(async (req, res) => {
 if (require.main === module) {
   writeBackup('auto');
   setInterval(() => { try { writeBackup('auto'); } catch (error) { console.error('Automatic backup failed:', error.message); } }, 24 * 3600 * 1000).unref();
+  setInterval(() => { try { runReminders(); } catch (error) { console.error('Reminders failed:', error.message); } deliver().catch(error => console.error('Email delivery failed:', error.message)); }, 60 * 1000).unref();
+  console.log(MAIL.configured ? `Email: sending through Gmail as ${MAIL.sender}` : 'Email: Gmail is not set up; emails wait in the outbox.');
   server.listen(PORT, config.host, () => console.log(`UZ Events running at ${config.publicUrl || `http://${config.host}:${PORT}`}`));
 }
 
-module.exports = { server, reset: () => { db = seed(); store.replace(db); } };
+module.exports = { server, reset: () => { db = seed(); ensureSettings(); store.replace(db); },
+  // for the tests: run the reminder and delivery steps on demand, with a fake mailer
+  mail: { runReminders, deliver, useMailer: (fn, on = true) => { mailer = fn; MAIL.configured = on; if (!MAIL.sender) MAIL.sender = 'events@example.com'; } } };

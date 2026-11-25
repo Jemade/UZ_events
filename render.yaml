@@ -23,5 +23,14 @@ services:
         sync: false
       - key: ADMIN_PASSWORD
         sync: false
+      # Gmail for reminder emails (see README, "Email reminders"). Leave empty until set up.
+      - key: GMAIL_SENDER
+        sync: false
+      - key: GMAIL_CLIENT_ID
+        sync: false
+      - key: GMAIL_CLIENT_SECRET
+        sync: false
+      - key: GMAIL_REFRESH_TOKEN
+        sync: false
       # Free plan: the disk is temporary, so data resets on every restart, redeploy or sleep.
       # On a paid plan, add a persistent disk mounted at /var/data and set DATA_DIR=/var/data.

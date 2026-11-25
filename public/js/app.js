@@ -28,6 +28,7 @@ const ROUTES = [
   ['/work/users', work.users, { role: 'admin' }],
   ['/work/venues', work.venues, { role: 'admin' }],
   ['/work/site', work.sitePhotos, { role: 'admin' }],
+  ['/work/email', work.email, { role: 'admin' }],
   ['/work/screens', work.lobbyScreens, { role: 'organiser' }],
   ['/work/audit', work.audit, { role: 'admin' }],
   ['/work/backups', work.backups, { role: 'admin' }],
