@@ -29,13 +29,15 @@ function client() {
     return { status: res.status, data };
   };
 }
+// Event pages are for signed-in members; a student account plays the part of the reader.
+const reader = () => login('r2400001@students.uz.ac.zw');
 const login = async (email) => { const c = client(); const r = await c('POST', '/api/login', { email, password: 'UZevents2026' }); assert.equal(r.status, 200); return c; };
 const day = (n, hm) => T.addDays(T.harareNow().slice(0, 10) + 'T00:00', n).slice(0, 11) + hm;
 
 test('end-to-end submission, approval and publication', async () => {
   const org = await login('organiser.eng@uz.ac.zw');
   const appr = await login('approver.eng@uz.ac.zw');
-  const anon = client();
+  const anon = await reader();
   const ev = { title: 'Acceptance Test Lecture', category: 'Academic', departmentId: 'eng', venueId: 'lib', start: day(20, '10:00'), end: day(20, '11:00'), contactName: 'Test', contactEmail: 't@uz.ac.zw', isPublic: true };
   const c = await org('POST', '/api/events', ev);
   assert.equal(c.status, 200);
@@ -62,7 +64,7 @@ test('end-to-end submission, approval and publication', async () => {
 });
 
 test('role restrictions are enforced', async () => {
-  const anon = client();
+  const anon = await reader();
   const org = await login('organiser.sa@uz.ac.zw');
   const engAppr = await login('approver.eng@uz.ac.zw');
   assert.equal((await anon('POST', '/api/events', {})).status, 401);
@@ -143,7 +145,10 @@ test('public visitors and organisers can never reach the admin side', async () =
   assert.equal((await org('POST', '/api/admin/restore', { snapshot: {} })).status, 403);
   assert.equal((await org('POST', '/api/users', { name: 'x' })).status, 403);
   // public event data carries no internal fields
-  const list = await anon('GET', '/api/events');
+  assert.equal((await anon('GET', '/api/events')).status, 401, 'nobody reads events without signing in');
+  assert.equal((await anon('GET', '/api/events/e101')).status, 401);
+  assert.equal((await anon('GET', '/api/display/senate')).status, 200, 'lobby screens stay open');
+  const list = await (await reader())('GET', '/api/events');
   for (const e of list.data.events) {
     for (const k of ['createdBy', 'createdByName', 'reviewNote', 'views', 'canEdit', 'canReview']) assert.equal(e[k], undefined, `${k} leaked`);
   }
@@ -286,7 +291,7 @@ test('nobody, including administrators, can approve their own submission', async
 test('changing only the cover photo of a published event is not a public update', async () => {
   const org = await login('organiser.eng@uz.ac.zw');
   const appr = await login('approver.eng@uz.ac.zw');
-  const anon = client();
+  const anon = await reader();
   const ev = { title: 'Photo Change Lecture', category: 'Academic', departmentId: 'eng', venueId: 'lib', start: day(30, '10:00'), end: day(30, '11:00'), contactName: 'Test', contactEmail: 't@uz.ac.zw', isPublic: true };
   const id = (await org('POST', '/api/events', ev)).data.event.id;
   await org('POST', `/api/events/${id}/action`, { action: 'submit' });

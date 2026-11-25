@@ -11,11 +11,11 @@ const ROUTES = [
   ['/calendar', cal.calendar],
   ['/event/:id', pub.eventDetail],
   ['/archive', pub.archive],
-  ['/display/:id', display.display, { bare: true }],
-  ['/login', pub.login],
-  ['/signup', pub.signup],
-  ['/staff', pub.login],
-  ['/me', pub.myEvents, { auth: true }],
+  ['/display/:id', display.display, { bare: true, open: true }],
+  ['/login', pub.login, { open: true }],
+  ['/signup', pub.signup, { open: true }],
+  ['/staff', pub.login, { open: true }],
+  ['/me', pub.myEvents],
   ['/work', work.overview, { role: 'organiser' }],
   ['/work/events', work.myEvents, { role: 'organiser' }],
   ['/work/events/new', work.eventForm, { role: 'organiser' }],
@@ -67,6 +67,15 @@ function chrome(path) {
       </div>
     </div></header>`;
   }
+  if (!me) {
+    return html`<header class="masthead signedout"><div class="wrap">
+      <a class="brand" href="#/login" aria-label="UZ Events sign in">
+        <img src="/assets/uz-crest.png" alt="University of Zimbabwe crest" width="53" height="54">
+        <div><b>UZ Events</b><span>University of Zimbabwe</span></div>
+      </a>
+      <div class="who">${path === '/signup' ? html`<a class="btn ghost sm" href="#/login">Sign in</a>` : html`<a class="btn sm" href="#/signup">Create account</a>`}</div>
+    </div></header>`;
+  }
   return html`
   <header class="masthead"><div class="wrap">
     <a class="brand" href="#/" aria-label="UZ Events home">
@@ -83,7 +92,7 @@ function chrome(path) {
       ${me ? html`
         ${can('organiser') ? html`<a class="btn sm" href="#/work">Go to workspace</a>` : html`<a class="btn sm ${on('/me')}" href="#/me">My events</a>`}
         <button class="btn ghost sm" id="logoutBtn">Sign out</button>`
-      : html`<a class="btn ghost sm" href="#/login">Sign in</a><a class="btn sm" href="#/signup">Create account</a>`}
+      : ''}
     </div>
   </div></header>`;
 }
@@ -116,7 +125,12 @@ async function render() {
   const el = document.getElementById('app');
   // Staff and admin areas are invisible to anyone without the right role:
   // they get the same "Page not found" as a URL that does not exist.
-  if (route && route.auth && !state.me) { go('#/login' + '?next=' + encodeURIComponent(path)); return; }
+  // Sign-in comes first: without an account, every page except sign-in, create account
+  // and the lobby display screens goes to the sign-in page, and returns to where you were going afterwards.
+  if (!state.me && !(route && route.open)) {
+    go('#/login' + (path !== '/' && route ? '?next=' + encodeURIComponent(path) : ''));
+    return;
+  }
   if (!route || (route.role && !can(route.role))) {
     if (window.__cleanup) { window.__cleanup(); window.__cleanup = null; }
     document.body.classList.remove('bare');
@@ -127,7 +141,7 @@ async function render() {
   }
   document.body.classList.toggle('bare', !!route.bare);
   top.innerHTML = route.bare ? '' : String(chrome(path));
-  foot.innerHTML = route.bare || path.startsWith('/work') ? '' : String(footer());
+  foot.innerHTML = route.bare || path.startsWith('/work') || !state.me ? '' : String(footer());
   if (window.__cleanup) { window.__cleanup(); window.__cleanup = null; }
   el.innerHTML = skeleton(path.startsWith('/work') ? 'work' : route.bare ? 'display' : 'page');
   try {
@@ -165,7 +179,7 @@ function wireChrome() {
     await api('/api/logout', { method: 'POST', body: {} });
     state.me = null;
     toast('You have been signed out.');
-    go('#/');
+    go('#/login');
     render();
   };
 }

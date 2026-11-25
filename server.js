@@ -141,7 +141,8 @@ function canReview(u, e) {
 }
 const LIVE = ['published', 'postponed', 'cancelled'];
 function canView(u, e) {
-  if (LIVE.includes(e.status)) return e.isPublic || !!u;
+  // Internal (non-public) events are for staff accounts only; students see the open events.
+  if (LIVE.includes(e.status)) return e.isPublic || (!!u && u.role !== 'student');
   return !!u && (e.createdBy === u.id || canReview(u, e));
 }
 
@@ -401,7 +402,7 @@ route('POST', '/api/signup', ({ req, body }) => {
 
 // A student's or staff member's own saved events.
 route('POST', '/api/me/saved', ({ member, body }) => {
-  if (!member) throw new HttpError(401, 'Please sign in.');
+  needMember(member);
   const e = getEvent(String(body.eventId || ''));
   if (!LIVE.includes(e.status) || !canView(member, e)) throw notFound('Event not found.');
   member.saved = (member.saved || []).filter(id => id !== e.id && db.events.some(x => x.id === id));
@@ -460,7 +461,11 @@ route('GET', '/api/meta', () => ({
   settings: db.settings,
 }));
 
+// The site is for signed-in staff and students only: event data needs an account.
+// Lobby screens (/api/display) and the calendar feed stay open, since TVs and calendar apps cannot sign in.
+const needMember = member => { if (!member) throw new HttpError(401, 'Please sign in.'); };
 route('GET', '/api/events', ({ u, member, q }) => {
+  needMember(member);
   const scope = q.scope || 'public';
   const text = (q.q || '').toLowerCase().trim();
   const match = e => {
@@ -498,6 +503,7 @@ route('GET', '/api/events', ({ u, member, q }) => {
 });
 
 route('GET', '/api/events/:id', ({ u, member, p, q }) => {
+  needMember(member);
   const e = getEvent(p.id);
   if (!canView(u, e) && !(LIVE.includes(e.status) && canView(member, e))) throw notFound('Event not found.');
   if (q.view === '1' && !u) { e.views = (e.views || 0) + 1; saveSoon(); }
@@ -618,9 +624,10 @@ route('POST', '/api/events/:id/action', ({ u, p, body }) => {
   return { event: eventOut(e, u), conflicts };
 });
 
-route('GET', '/api/events/:id/ics', ({ u, p, res }) => {
+route('GET', '/api/events/:id/ics', ({ member, p, res }) => {
+  needMember(member);
   const e = getEvent(p.id.replace(/\.ics$/, ''));
-  if (!canView(u, e) || !LIVE.includes(e.status)) throw notFound();
+  if (!canView(member, e) || !LIVE.includes(e.status)) throw notFound();
   send(res, 200, icsWrap([e]), { 'Content-Type': 'text/calendar; charset=utf-8', 'Content-Disposition': `attachment; filename="uz-event-${e.id}.ics"` });
 });
 

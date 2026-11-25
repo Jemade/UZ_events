@@ -765,6 +765,4 @@ label.btn:focus-within { outline: 3px solid var(--navy); outline-offset: 3px; }
 .saved-row .ev-row { min-width: 0; }
 .login .tabs { margin-bottom: 20px; }
 .login .banner { margin-bottom: 16px; }
-@media (max-width: 560px) {
-  .masthead .who a[href="#/signup"] { display: none; }
-}
+.masthead.signedout .who { margin-left: auto; }

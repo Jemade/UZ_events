@@ -12,13 +12,13 @@ Built by Jayden Mapasure and Nyasha Madoro.
    - `ADMIN_NAME`: their display name.
    - `ADMIN_PASSWORD`: at least 10 characters. Keep it out of documents and chat; share it in person.
 3. Click **Apply**. After the build, the site is at `https://<service-name>.onrender.com`.
-4. Everyone signs in at `https://<service-name>.onrender.com/#/login` (the **Sign in** button on every public page).
+4. Opening the site shows the sign-in page first. Nothing else is visible without an account, except the lobby display screens (`#/display/<screen>`) and the calendar feed (`/api/calendar.ics`), which TVs and calendar apps use without signing in.
 
 ## Accounts and roles
 
 - **Students** choose **Create account → Student** and enter their registration number (for example `R2420211`, any case) and their student email. The email must be that number at `students.uz.ac.zw` (`r2420211@students.uz.ac.zw`), otherwise the account is refused. They sign in with the registration number and land on **My events**: saved events and what their faculty has coming up.
 - **Staff** choose **Create account → Staff** and use their own email. They start with no role and land on **My events** with a notice. The administrator is notified and gives them a role under **Users and roles → Waiting for a role**.
-- **Organisers, approvers and administrators** land in the **Workspace** and see only the screens their role allows. Student accounts can never be given a staff role.
+- **Organisers, approvers and administrators** land in the **Workspace** and see only the screens their role allows. Student accounts can never be given a staff role. Internal events are shown to staff accounts only.
 
 The student email check confirms that the email and the registration number belong together. It does not yet send a code to the inbox, because email delivery is not connected (see the outbox under Workspace).
 

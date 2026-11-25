@@ -24,14 +24,15 @@ test('a new live installation starts empty with one administrator and the bundle
   assert.match(meta.settings.loginImage, /^\/uploads\/[a-f0-9]{32}\.jpg$/);
   assert.equal(meta.settings.publicUrl, 'https://uz-events.onrender.com', 'QR codes use the Render address');
   assert.equal((await fetch(base + meta.settings.heroImage)).status, 200);
-  const events = await (await fetch(base + '/api/events?from=2000-01-01&to=2100-01-01')).json();
-  assert.equal(events.events.length, 0);
+  assert.equal((await fetch(base + '/api/events')).status, 401, 'events need an account');
   // the sample accounts do not exist here
   assert.equal((await post('/api/login', { email: 'admin@uz.ac.zw', password: 'UZevents2026' })).status, 401);
   const ok = await post('/api/login', { email: 'events.admin@uz.ac.zw', password: 'a-long-test-pass' });
   assert.equal(ok.status, 200);
   assert.match(ok.headers.get('set-cookie'), /; Secure/, 'cookies are Secure on https');
   assert.equal((await ok.json()).user.role, 'admin');
+  const events = await (await fetch(base + '/api/events?from=2000-01-01&to=2100-01-01', { headers: { Cookie: ok.headers.get('set-cookie').split(';')[0] } })).json();
+  assert.equal(events.events.length, 0);
 });
 
 test('sign-in throttling counts each visitor separately behind the proxy', async () => {

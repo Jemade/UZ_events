@@ -160,7 +160,7 @@ export async function eventDetail({ el, params, query }) {
       ${e.status === 'cancelled' ? html`<div class="banner cancelled"><b>This event has been cancelled.</b>${lastCancel && lastCancel.note ? html`<p>${lastCancel.note}</p>` : ''}</div>` : ''}
       ${e.status === 'postponed' ? html`<div class="banner postponed"><b>This event has been postponed. A new date will be announced.</b>${lastCancel && lastCancel.note ? html`<p>${lastCancel.note}</p>` : ''}</div>` : ''}
       ${!['published', 'postponed', 'cancelled'].includes(e.status) ? html`<div class="banner info"><b>Preview: not public.</b><p>This event is “${e.status}”. Only staff with access can see this page.</p></div>` : ''}
-      ${!e.isPublic ? html`<div class="banner info"><b>Internal event</b><p>Visible to signed-in university staff and students only.</p></div>` : ''}
+      ${!e.isPublic ? html`<div class="banner info"><b>Internal event</b><p>Visible to signed-in university staff only.</p></div>` : ''}
       ${isPast && e.status !== 'cancelled' ? html`<div class="banner info"><b>This event has ended.</b><p>It is kept in the <a href="#/archive">events archive</a> for the university record.</p></div>` : ''}
       <figure class="cover">${photo(e)}</figure>
       ${e.summary ? html`<p class="lede">${e.summary}</p>` : ''}
