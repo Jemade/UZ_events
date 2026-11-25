@@ -36,7 +36,7 @@ export const D = {
   medium(s) { const d = D.parse(s); return `${DAYS[d.getUTCDay()].slice(0, 3)} ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()].slice(0, 3)} ${d.getUTCFullYear()}`; },
   short(s) { const d = D.parse(s); return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()].slice(0, 3)}`; },
   monthYear(s) { const d = D.parse(s); return `${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`; },
-  stamp(s) { return s ? `${D.short(s)} ${D.parse(s).getUTCFullYear()}, ${D.time(s)}` : '—'; },
+  stamp(s) { return s ? `${D.short(s)} ${D.parse(s).getUTCFullYear()}, ${D.time(s)}` : 'Not set'; },
   range(start, end) {
     if (start.slice(0, 10) === end.slice(0, 10)) return `${D.long(start)} · ${D.time(start)}–${D.time(end)}`;
     return `${D.medium(start)} ${D.time(start)} – ${D.medium(end)} ${D.time(end)}`;

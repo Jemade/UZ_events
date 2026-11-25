@@ -11,7 +11,6 @@ const ROUTES = [
   ['/calendar', cal.calendar],
   ['/event/:id', pub.eventDetail],
   ['/archive', pub.archive],
-  ['/screens', display.screens],
   ['/display/:id', display.display, { bare: true }],
   ['/staff', pub.login],
   ['/work', work.overview, { role: 'organiser' }],
@@ -26,6 +25,7 @@ const ROUTES = [
   ['/work/users', work.users, { role: 'admin' }],
   ['/work/venues', work.venues, { role: 'admin' }],
   ['/work/site', work.sitePhotos, { role: 'admin' }],
+  ['/work/screens', work.lobbyScreens, { role: 'organiser' }],
   ['/work/audit', work.audit, { role: 'admin' }],
   ['/work/backups', work.backups, { role: 'admin' }],
 ].map(([pattern, view, opts = {}]) => {
@@ -75,7 +75,6 @@ function chrome(path) {
       <a href="#/" class="${on('/')}">What’s on</a>
       <a href="#/calendar" class="${on('/calendar')}">Calendar</a>
       <a href="#/archive" class="${on('/archive')}">Archive</a>
-      <a href="#/screens" class="${on('/screens')}">Visitor screens</a>
     </nav>
     <div class="who">
       ${me ? html`<a class="btn sm" href="#/work">Go to workspace</a>` : ''}
@@ -92,7 +91,7 @@ function footer() {
         <p class="small">The official source for events at the University of Zimbabwe, Mount Pleasant, Harare.</p>
       </div>
       <div><h2>Find events</h2><a href="#/">What’s on</a><a href="#/calendar">Calendar</a><a href="#/archive">Archive</a><a href="/api/calendar.ics">Calendar feed (.ics)</a></div>
-      ${state.me ? html`<div><h2>Your workspace</h2><a href="#/work">Workspace</a><a href="#/work/events/new">Submit an event</a><a href="#/work/messages/new">Request a welcome message</a></div>` : html`<div><h2>Visitors</h2><a href="#/screens">Visitor welcome screens</a><a href="https://www.uz.ac.zw/" rel="noopener">University website</a></div>`}
+      ${state.me ? html`<div><h2>Your workspace</h2><a href="#/work">Workspace</a><a href="#/work/events/new">Submit an event</a><a href="#/work/messages/new">Request a welcome message</a></div>` : html`<div><h2>University</h2><a href="https://www.uz.ac.zw/" rel="noopener">University website</a><a href="https://www.uz.ac.zw/index.php/news-events" rel="noopener">University news</a></div>`}
       <div><h2>Contact</h2><p class="small">Events Office, Registrar’s Department<br>630 Churchill Avenue, Mount Pleasant, Harare</p><a href="https://www.uz.ac.zw/" rel="noopener">www.uz.ac.zw</a></div>
     </div>
     <div class="base"><div class="wrap"><span>© ${state.meta.now.slice(0, 4)} University of Zimbabwe</span><span>Events Office · Registrar’s Department</span></div></div>

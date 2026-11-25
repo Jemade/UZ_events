@@ -1,4 +1,4 @@
-// UZ Events — School Events Management Web System
+// UZ Events: School Events Management Web System
 // Zero-dependency Node.js server: static frontend + JSON API.
 'use strict';
 const http = require('http');
@@ -473,7 +473,7 @@ route('PUT', '/api/events/:id', ({ u, p, body }) => {
   const live = LIVE.includes(e.status);
   const note = str(body.changeNote, 'Change note', { max: 300 });
   if (live && changes.some(c => SIGNIFICANT.includes(c)) && !note) {
-    throw bad('This is a significant change to a published event. Please add a short note explaining it — it will be shown publicly.');
+    throw bad('This is a significant change to a published event. Please add a short note explaining it. It will be shown publicly.');
   }
   // A new photo or its description is not news: keep it out of the public "Updates" list.
   const photoOnly = changes.every(c => ['coverImage', 'coverAlt'].includes(c));

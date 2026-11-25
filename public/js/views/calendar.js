@@ -3,7 +3,7 @@ import { state, go, today } from '../app.js';
 import { agenda, evRow } from './public.js';
 
 const VIEWS = [['day', 'Day'], ['week', 'Week'], ['month', 'Month'], ['year', 'Year'], ['list', 'List']];
-const H0 = 7, H1 = 22, ROW = 52;
+const H0 = 7, H1 = 22;
 
 export async function calendar({ el, query, onCleanup }) {
   const t = today();
@@ -48,11 +48,8 @@ export async function calendar({ el, query, onCleanup }) {
 
   const active = Object.values(filters).some(Boolean);
   el.innerHTML = String(html`
-  <div class="page-head"><div class="wrap">
-    <div class="crumbs"><a href="#/">What’s on</a> / Calendar</div>
-    <h1>University calendar</h1>
-  </div></div>
-  <div class="wrap">
+  <div class="wrap cal-page">
+    <h1 class="sr">University calendar</h1>
     <div class="cal-bar">
       <div class="seg" role="group" aria-label="Previous or next">
         <a href="${link({ date: prev })}" aria-label="Previous">${icon.left}</a>
@@ -79,6 +76,13 @@ export async function calendar({ el, query, onCleanup }) {
     <div id="calbody">${body}</div>
     <p class="swipe-hint">Swipe left or right to move between ${view === 'list' ? 'months' : view + 's'}.</p>
   </div>`);
+  // Fit the calendar to the window: no page scrolling on a computer screen.
+  document.body.classList.add('cal-fit');
+  const fit = () => fitMonth(el);
+  fit();
+  window.addEventListener('resize', fit);
+  onCleanup(() => { document.body.classList.remove('cal-fit'); window.removeEventListener('resize', fit); });
+
   const on = el.querySelector('.daystrip .on') || el.querySelector('.daystrip .today');
   if (on) on.scrollIntoView({ inline: 'center', block: 'nearest' });
 
@@ -106,12 +110,12 @@ function month(events, gridStart, date, t) {
   for (let i = 0; i < 42; i++) {
     const d = D.addDays(gridStart, i);
     const list = byDay.get(d) || [];
-    const shown = list.slice(0, 3);
+    const shown = list;
     const wk = i % 7 >= 5;
     cells.push(html`<div class="cell ${d.slice(0, 7) !== ym ? 'out' : ''} ${wk ? 'wknd' : ''} ${d === t ? 'today' : ''}">
       <a class="num" href="#/calendar?view=day&date=${d}" aria-label="${D.long(d)}, ${list.length} events">${Number(d.slice(8))}</a>
-      ${shown.map(e => html`<a class="item ${e.status === 'cancelled' ? 'is-cancelled' : ''}" data-cat="${e.category}" href="#/event/${e.id}${e.occurrence ? '?on=' + encodeURIComponent(e.start) : ''}" title="${D.time(e.start)} ${e.title} — ${e.venueName}"><b>${D.time(e.start)}</b>${e.title}</a>`)}
-      ${list.length > 3 ? html`<a class="more" href="#/calendar?view=day&date=${d}">+${list.length - 3} more</a>` : ''}
+      ${shown.map(e => html`<a class="item ${e.status === 'cancelled' ? 'is-cancelled' : ''}" data-cat="${e.category}" href="#/event/${e.id}${e.occurrence ? '?on=' + encodeURIComponent(e.start) : ''}" title="${D.time(e.start)} ${e.title}, ${e.venueName}"><b>${D.time(e.start)}</b>${e.title}</a>`)}
+      ${list.length ? html`<a class="more" href="#/calendar?view=day&date=${d}" hidden></a>` : ''}
     </div>`);
   }
   return html`<div class="month">${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => html`<div class="dow">${d}</div>`)}${cells}</div>`;
@@ -140,17 +144,18 @@ function week(events, start, days, t) {
     });
     const lanes = Math.max(1, laneEnds.length);
     const blocks = placed.map(({ e, s, en, lane }) => {
-      const top = Math.max(0, (s - H0 * 60) / 60 * ROW);
-      const height = Math.max(26, (Math.min(en, H1 * 60) - Math.max(s, H0 * 60)) / 60 * ROW - 2);
+      const span = (H1 - H0) * 60;
+      const top = Math.max(0, (s - H0 * 60) / span * 100);
+      const height = (Math.min(en, H1 * 60) - Math.max(s, H0 * 60)) / span * 100;
       const w = 100 / lanes;
       return html`<a class="blk ${e.status === 'cancelled' ? 'is-cancelled' : ''}" data-cat="${e.category}" href="#/event/${e.id}${e.occurrence ? '?on=' + encodeURIComponent(e.start) : ''}"
-        style="top:${top}px;height:${height}px;left:calc(${lane * w}% + 3px);right:auto;width:calc(${w}% - 6px)">
+        style="top:${top}%;height:calc(${height}% - 2px);left:calc(${lane * w}% + 3px);right:auto;width:calc(${w}% - 6px)">
         <b>${e.title}</b>${D.time(e.start)}–${D.time(e.end)} · ${e.venueName}</a>`;
     });
     const nowMin = D.minutes(now);
     const nowLine = d === now.slice(0, 10) && nowMin >= H0 * 60 && nowMin < H1 * 60
-      ? html`<div class="nowline" style="top:${(nowMin - H0 * 60) / 60 * ROW}px" aria-hidden="true"></div>` : '';
-    cols.push(html`<div class="col" style="height:${(H1 - H0) * ROW}px">${blocks}${nowLine}</div>`);
+      ? html`<div class="nowline" style="top:${(nowMin - H0 * 60) / ((H1 - H0) * 60) * 100}%" aria-hidden="true"></div>` : '';
+    cols.push(html`<div class="col">${blocks}${nowLine}</div>`);
   }
   return html`<div class="week" style="--days:${days}">
     <div class="head" style="border-left:0"></div>${heads}
@@ -194,4 +199,22 @@ function groupByDay(events, spanDays = false) {
     }
   });
   return m;
+}
+
+// Show as many events in each month cell as fit its height; the rest become "+n more".
+function fitMonth(root) {
+  root.querySelectorAll('.month .cell').forEach(cell => {
+    const items = [...cell.querySelectorAll('.item')];
+    const more = cell.querySelector('.more');
+    if (!items.length) return;
+    items.forEach(i => { i.hidden = false; });
+    if (more) more.hidden = true;
+    let hiddenCount = 0;
+    const overflowing = () => cell.scrollHeight > cell.clientHeight + 1;
+    while (overflowing() && hiddenCount < items.length) {
+      hiddenCount++;
+      items[items.length - hiddenCount].hidden = true;
+      if (more) { more.hidden = false; more.textContent = `+${hiddenCount} more`; }
+    }
+  });
 }

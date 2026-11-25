@@ -27,6 +27,7 @@ async function layout(el, path, content) {
       ${a('/work/events', 'list', 'My events')}
       ${a('/work/events/new', 'plus', 'Submit an event')}
       ${a('/work/messages', 'chat', 'Welcome messages')}
+      ${a('/work/screens', 'screen', 'Lobby screens')}
       ${can('approver') ? html`<h2>Approvals</h2>${a('/work/review', 'inbox', 'Review queue', c.review)}${a('/work/manage', 'cal', 'Published events')}` : ''}
       ${can('admin') ? html`<h2>Administration</h2>${a('/work/users', 'shield', 'Users and roles')}${a('/work/venues', 'pin', 'Venues')}${a('/work/site', 'image', 'Site photos')}${a('/work/audit', 'file', 'Audit log')}${a('/work/backups', 'db', 'Backups')}` : ''}
     </nav>
@@ -125,7 +126,7 @@ const head = (title, sub, actions = '') => html`<div class="main-head"><div><h1>
 
 function conflictBox(list) {
   if (!list || !list.length) return '';
-  return html`<div class="warn" role="alert"><b>Possible venue clash</b> — the same venue is booked at an overlapping time:
+  return html`<div class="warn" role="alert"><b>Possible venue clash:</b> the same venue is booked at an overlapping time:
     <ul>${list.map(c => html`<li><a href="#/event/${c.id}">${c.title}</a> · ${D.medium(c.start)} ${D.time(c.start)}–${D.time(c.end)} (${STATUS_LABEL[c.status] || c.status})</li>`)}</ul></div>`;
 }
 
@@ -144,8 +145,8 @@ export async function overview({ el, path }) {
       <div class="tiles">
         <a class="tile" href="#/work/review"><div class="k">Awaiting your review</div><div class="v">${s.pending}</div><div class="s">${s.pendingWithConflicts} with a venue clash</div></a>
         <a class="tile" href="#/work/manage"><div class="k">Upcoming, published</div><div class="v">${s.upcoming}</div><div class="s">in your remit</div></a>
-        <div class="tile"><div class="k">Average approval time</div><div class="v">${s.avgApprovalHours === null ? '—' : s.avgApprovalHours < 48 ? s.avgApprovalHours + 'h' : Math.round(s.avgApprovalHours / 24) + 'd'}</div><div class="s">submission to decision</div></div>
-        <div class="tile"><div class="k">Published via system</div><div class="v">${s.publishedShare === null ? '—' : s.publishedShare + '%'}</div><div class="s">of submitted events</div></div>
+        <div class="tile"><div class="k">Average approval time</div><div class="v">${s.avgApprovalHours === null ? 'None yet' : s.avgApprovalHours < 48 ? s.avgApprovalHours + 'h' : Math.round(s.avgApprovalHours / 24) + 'd'}</div><div class="s">submission to decision</div></div>
+        <div class="tile"><div class="k">Published via system</div><div class="v">${s.publishedShare === null ? 'None yet' : s.publishedShare + '%'}</div><div class="s">of submitted events</div></div>
         <a class="tile" href="#/work/messages"><div class="k">Welcome screens live</div><div class="v">${s.liveMessages}</div><div class="s">${s.pendingMessages} awaiting approval</div></a>
       </div>
       <div class="grid2">
@@ -173,7 +174,7 @@ export async function overview({ el, path }) {
         <a class="tile" href="#/work/events?tab=published"><div class="k">Published</div><div class="v">${by('published')}</div><div class="s">on the public calendar</div></a>
       </div>
       <section class="panel"><header><h2>What to do next</h2></header><div class="pad">
-        ${returned.length ? returned.map(e => html`<div class="warn" style="margin:0 0 10px"><b>${e.title}</b> was returned: “${e.reviewNote}” — <a href="#/work/events/${e.id}/edit">revise and resubmit</a></div>`)
+        ${returned.length ? returned.map(e => html`<div class="warn" style="margin:0 0 10px"><b>${e.title}</b> was returned: “${e.reviewNote}”. <a href="#/work/events/${e.id}/edit">revise and resubmit</a></div>`)
           : html`<p class="muted">You have nothing waiting on you.</p>`}
         <div class="form-actions" style="border:0;padding-top:6px">
           <a class="btn" href="#/work/events/new">${icon.plus} Submit an event</a>
@@ -229,11 +230,11 @@ export async function myEvents({ el, path, query }) {
       } else if (act === 'cancel') {
         const r = await ask({ title: 'Cancel this event?', text: 'The event stays on the calendar marked as cancelled, with your reason shown publicly.', fields: [{ name: 'note', label: 'Reason (shown publicly)', type: 'textarea', required: true }], confirm: 'Cancel event', danger: true });
         if (!r) return;
-        await api(`/api/events/${id}/action`, { method: 'POST', body: { action: 'cancel', note: r.note } }); toast('Cancelled — the calendar now shows it as cancelled, with your reason.');
+        await api(`/api/events/${id}/action`, { method: 'POST', body: { action: 'cancel', note: r.note } }); toast('Cancelled. The calendar now shows it as cancelled, with your reason.');
       } else {
         const res = await api(`/api/events/${id}/action`, { method: 'POST', body: { action: act } });
         const undo = async () => { await api(`/api/events/${id}/action`, { method: 'POST', body: { action: act === 'submit' ? 'withdraw' : 'submit' } }); rerender(); };
-        toast(act === 'submit' ? (res.conflicts.length ? 'Sent to an approver — they will see the venue clash.' : 'Sent to an approver for review.') : 'Withdrawn — back in your drafts.', { undo });
+        toast(act === 'submit' ? (res.conflicts.length ? 'Sent to an approver. They will see the venue clash.' : 'Sent to an approver for review.') : 'Withdrawn. It is back in your drafts.', { undo });
       }
       rerender();
     } catch (err) { toast(err.message, true); }
@@ -342,7 +343,7 @@ export async function eventForm({ el, path, params }) {
       if (!d.venueId || d.start.length !== 16 || d.end.length !== 16) { box.innerHTML = ''; return; }
       try {
         const { conflicts } = await api('/api/conflicts', { method: 'POST', body: { venueId: d.venueId, start: d.start, end: d.end, recurrence: d.recurrence, excludeId: e && e.id } });
-        box.innerHTML = conflicts.length ? String(conflictBox(conflicts)) + '<p class="small muted">You can still submit — the approver will see the clash and decide.</p>' : String(html`<div class="ok">${venueName(d.venueId)} looks free at that time.</div>`);
+        box.innerHTML = conflicts.length ? String(conflictBox(conflicts)) + '<p class="small muted">You can still submit. The approver will see the clash and decide.</p>' : String(html`<div class="ok">${venueName(d.venueId)} looks free at that time.</div>`);
       } catch { box.innerHTML = ''; }
     }, 350);
   };
@@ -364,7 +365,7 @@ export async function eventForm({ el, path, params }) {
       const res = e ? await api('/api/events/' + e.id, { method: 'PUT', body }) : await api('/api/events', { method: 'POST', body });
       if (mode === 'submit') {
         await api(`/api/events/${res.event.id}/action`, { method: 'POST', body: { action: 'submit' } });
-        toast(res.conflicts.length ? 'Submitted for approval — the approver will see the venue clash.' : 'Submitted for approval.');
+        toast(res.conflicts.length ? 'Submitted for approval. The approver will see the venue clash.' : 'Submitted for approval.');
       } else toast(live ? 'Changes saved and recorded.' : 'Saved.');
       go(isReviewerEdit || live ? '#/event/' + res.event.id : '#/work/events');
     } catch (x) {
@@ -415,7 +416,7 @@ export async function review({ el, path }) {
         <h3>${m.guestName}</h3>
         <p class="muted">${m.guestTitle}</p>
         <blockquote style="margin:10px 0;font:italic 17px var(--serif);border-left:3px solid var(--orange);padding-left:14px">${m.wording}</blockquote>
-        <dl class="kv"><dt>Display</dt><dd>${D.stamp(m.displayFrom)} → ${D.stamp(m.displayUntil)}</dd><dt>Linked event</dt><dd>${m.eventTitle || '—'}</dd><dt>Requested by</dt><dd>${m.createdByName}</dd></dl>
+        <dl class="kv"><dt>Display</dt><dd>${D.stamp(m.displayFrom)} → ${D.stamp(m.displayUntil)}</dd><dt>Linked event</dt><dd>${m.eventTitle || 'None'}</dd><dt>Requested by</dt><dd>${m.createdByName}</dd></dl>
       </div>
       <form class="decide" data-msg="${m.id}">
         <label class="field"><span>Note</span><textarea class="input" name="note" rows="3"></textarea></label>
@@ -432,7 +433,7 @@ export async function review({ el, path }) {
       const url = form.dataset.id ? `/api/events/${form.dataset.id}/action` : `/api/messages/${form.dataset.msg}/action`;
       try {
         await api(url, { method: 'POST', body: { action, note } });
-        toast({ approve: 'Approved — now live on the public calendar.', return: 'Returned to the organiser with your note.', reject: 'Rejected — the organiser can see your note.' }[action]);
+        toast({ approve: 'Approved. It is now live on the public calendar.', return: 'Returned to the organiser with your note.', reject: 'Rejected. The organiser can see your note.' }[action]);
         rerender();
       } catch (err) { toast(err.message, true); }
     };
@@ -476,14 +477,14 @@ export async function manage({ el, path, query }) {
     const e = events.find(x => x.id === b.dataset.id);
     let body = null;
     if (b.dataset.act === 'reschedule') {
-      const r = await ask({ title: 'Reschedule event', text: `“${e.title}” — the new time is published with your note.`, confirm: 'Reschedule', fields: [
+      const r = await ask({ title: 'Reschedule event', text: `The new time for “${e.title}” is published with your note.`, confirm: 'Reschedule', fields: [
         { name: 'sd', label: 'New date', type: 'date', value: e.start.slice(0, 10), required: true },
         { name: 'st', label: 'Start time', type: 'time', value: e.start.slice(11), required: true },
         { name: 'et', label: 'End time', type: 'time', value: e.end.slice(11), required: true },
         { name: 'note', label: 'Reason (shown publicly)', type: 'textarea', required: true }] });
       if (r) body = { action: 'postpone', note: r.note, start: `${r.sd}T${r.st}`, end: `${r.sd}T${r.et}` };
     } else if (b.dataset.act === 'postpone') {
-      const r = await ask({ title: 'Postpone — new date to be announced', text: 'The event stays listed and is marked as postponed.', confirm: 'Postpone', fields: [{ name: 'note', label: 'Reason (shown publicly)', type: 'textarea', required: true }] });
+      const r = await ask({ title: 'Postpone: new date to be announced', text: 'The event stays listed and is marked as postponed.', confirm: 'Postpone', fields: [{ name: 'note', label: 'Reason (shown publicly)', type: 'textarea', required: true }] });
       if (r) body = { action: 'postpone', note: r.note };
     } else if (b.dataset.act === 'cancel') {
       const r = await ask({ title: 'Cancel event', text: `“${e.title}” will be marked as cancelled on the public calendar.`, confirm: 'Cancel event', danger: true, fields: [{ name: 'note', label: 'Reason (shown publicly)', type: 'textarea', required: true }] });
@@ -495,7 +496,7 @@ export async function manage({ el, path, query }) {
     if (!body) return;
     try {
       const res = await api(`/api/events/${e.id}/action`, { method: 'POST', body });
-      toast(res.conflicts && res.conflicts.length ? 'Saved — note: this now clashes with another booking.' : 'Saved and recorded.');
+      toast(res.conflicts && res.conflicts.length ? 'Saved. Note: this now clashes with another booking.' : 'Saved and recorded.');
       rerender();
     } catch (err) { toast(err.message, true); }
   };
@@ -529,7 +530,7 @@ export async function messages({ el, path, query }) {
     if (b.dataset.act === 'withdraw' && !await ask({ title: 'Withdraw this message?', text: 'It will be removed from the screen immediately.', confirm: 'Withdraw', danger: true })) return;
     try {
       await api(`/api/messages/${b.dataset.id}/action`, { method: 'POST', body: { action: b.dataset.act } });
-      toast({ submit: 'Sent to an approver for review.', approve: 'Approved — it will appear on screen during its display period.', withdraw: 'Withdrawn — removed from the screen.' }[b.dataset.act]);
+      toast({ submit: 'Sent to an approver for review.', approve: 'Approved. It will appear on screen during its display period.', withdraw: 'Withdrawn and removed from the screen.' }[b.dataset.act]);
       rerender();
     } catch (err) { toast(err.message, true); }
   };
@@ -622,7 +623,7 @@ export async function users({ el, path }) {
           <label class="field"><span>University email</span><input class="input" name="email" type="email" required></label>
         </div>
         <div class="row">
-          <label class="field"><span>Role</span><select class="input" name="role"><option value="organiser">Organiser — submits events</option><option value="approver">Approver — reviews and publishes</option><option value="admin">Administrator — full control</option></select></label>
+          <label class="field"><span>Role</span><select class="input" name="role"><option value="organiser">Organiser: submits events</option><option value="approver">Approver: reviews and publishes</option><option value="admin">Administrator: full control</option></select></label>
           <label class="field"><span>Department</span><select class="input" name="department">${state.meta.departments.map(d => html`<option value="${d.id}">${d.name}</option>`)}</select></label>
           <label class="field"><span>Temporary password</span><input class="input" type="password" name="password" minlength="10" autocomplete="new-password" required><small>At least 10 characters.</small></label>
         </div>
@@ -756,8 +757,17 @@ export async function sitePhotos({ el, path }) {
       await api('/api/settings', { method: 'PUT', body: Object.fromEntries(new FormData(ev.target)) });
       const { refreshMeta } = await import('../app.js');
       await refreshMeta();
-      toast('Saved — the public site now uses these photos.');
+      toast('Saved. The public site now uses these photos.');
       rerender();
     } catch (err) { toast(err.message, true); }
   };
+}
+
+// ---------------- LOBBY SCREENS ----------------
+export async function lobbyScreens({ el, path }) {
+  const { screenCards } = await import('./display.js');
+  const cards = await screenCards();
+  await layout(el, path, html`
+    ${head('Lobby screens', 'Each reception or venue screen welcomes official guests during their visit, and shows the next events at that venue the rest of the time.')}
+    ${cards}`);
 }

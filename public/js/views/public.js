@@ -72,7 +72,7 @@ export async function home({ el }) {
     <div>
       <div class="eyebrow">${D.long(now)}</div>
       <h1>What’s on at the University of Zimbabwe</h1>
-      <p class="lede">Lectures, ceremonies, research days, sport and culture — every approved university event, in one place.</p>
+      <p class="lede">Lectures, ceremonies, research days, sport and culture: every approved university event, in one place.</p>
       <form class="search" id="search" role="search">
         <label class="sr" for="q">Search events</label>
         <input id="q" name="q" placeholder="Search by event, venue or faculty" autocomplete="off">
@@ -158,17 +158,17 @@ export async function eventDetail({ el, params, query }) {
     <article>
       ${e.status === 'cancelled' ? html`<div class="banner cancelled"><b>This event has been cancelled.</b>${lastCancel && lastCancel.note ? html`<p>${lastCancel.note}</p>` : ''}</div>` : ''}
       ${e.status === 'postponed' ? html`<div class="banner postponed"><b>This event has been postponed. A new date will be announced.</b>${lastCancel && lastCancel.note ? html`<p>${lastCancel.note}</p>` : ''}</div>` : ''}
-      ${!['published', 'postponed', 'cancelled'].includes(e.status) ? html`<div class="banner info"><b>Preview — not public.</b><p>This event is “${e.status}”. Only staff with access can see this page.</p></div>` : ''}
+      ${!['published', 'postponed', 'cancelled'].includes(e.status) ? html`<div class="banner info"><b>Preview: not public.</b><p>This event is “${e.status}”. Only staff with access can see this page.</p></div>` : ''}
       ${!e.isPublic ? html`<div class="banner info"><b>Internal event</b><p>Visible to signed-in university staff only.</p></div>` : ''}
       ${isPast && e.status !== 'cancelled' ? html`<div class="banner info"><b>This event has ended.</b><p>It is kept in the <a href="#/archive">events archive</a> for the university record.</p></div>` : ''}
       <figure class="cover">${photo(e)}</figure>
       ${e.summary ? html`<p class="lede">${e.summary}</p>` : ''}
       <div class="body">${(e.description || '').split(/\n{2,}/).map(p => html`<p>${p}</p>`)}</div>
       ${notes.length ? html`<hr class="rule"><h2 style="margin-bottom:16px;font-size:var(--fs-h3)">Updates</h2>
-        <ul class="timeline">${notes.slice().reverse().map(h => html`<li><span class="when">${D.stamp(h.at)}</span><br><b>${ACTION_TEXT[h.action] || h.action}</b>${h.note ? html` — ${h.note}` : ''}</li>`)}</ul>` : ''}
+        <ul class="timeline">${notes.slice().reverse().map(h => html`<li><span class="when">${D.stamp(h.at)}</span><br><b>${ACTION_TEXT[h.action] || h.action}</b>${h.note ? html`: ${h.note}` : ''}</li>`)}</ul>` : ''}
       ${staff && e.createdByName ? html`<hr class="rule"><h2 style="margin-bottom:6px;font-size:var(--fs-h3)">Record</h2>
         <p class="small muted">Submitted by ${e.createdByName} · ${e.views || 0} public views · Last updated ${D.stamp(e.updatedAt)}</p>
-        <ul class="timeline">${e.history.slice().reverse().map(h => html`<li><span class="when">${D.stamp(h.at)} · ${h.by}</span><br><b>${ACTION_TEXT[h.action] || h.action}</b>${h.note ? html` — ${h.note}` : ''}${h.changes && h.changes.length ? html` <span class="muted small">(${h.changes.join(', ')})</span>` : ''}</li>`)}</ul>` : ''}
+        <ul class="timeline">${e.history.slice().reverse().map(h => html`<li><span class="when">${D.stamp(h.at)} · ${h.by}</span><br><b>${ACTION_TEXT[h.action] || h.action}</b>${h.note ? html`: ${h.note}` : ''}${h.changes && h.changes.length ? html` <span class="muted small">(${h.changes.join(', ')})</span>` : ''}</li>`)}</ul>` : ''}
     </article>
     <aside class="factbox" aria-label="Event details">
       <div class="datebig">
@@ -192,7 +192,7 @@ export async function eventDetail({ el, params, query }) {
     </aside>
   </div>`);
   el.querySelector('#copy').onclick = async () => {
-    try { await navigator.clipboard.writeText(location.href); toast('Link copied to your clipboard.'); } catch { toast('Copy failed — use the address bar instead.', true); }
+    try { await navigator.clipboard.writeText(location.href); toast('Link copied to your clipboard.'); } catch { toast('Copy failed. Use the address bar instead.', true); }
   };
   el.querySelector('#print').onclick = () => window.print();
 }
