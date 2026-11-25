@@ -10,8 +10,9 @@ const rerender = () => render();
 
 async function counts() {
   if (!can('approver')) return {};
-  const [r, m] = await Promise.all([api('/api/events?scope=review'), api('/api/messages')]);
-  return { review: r.events.length + m.messages.filter(x => x.status === 'submitted' && x.canReview).length };
+  const [r, m, us] = await Promise.all([api('/api/events?scope=review'), api('/api/messages'), can('admin') ? api('/api/users') : { users: [] }]);
+  return { review: r.events.length + m.messages.filter(x => x.status === 'submitted' && x.canReview).length,
+    waiting: us.users.filter(x => x.role === 'staff' && x.active).length };
 }
 
 async function layout(el, path, content) {
@@ -29,7 +30,7 @@ async function layout(el, path, content) {
       ${a('/work/messages', 'chat', 'Welcome messages')}
       ${a('/work/screens', 'screen', 'Lobby screens')}
       ${can('approver') ? html`<h2>Approvals</h2>${a('/work/review', 'inbox', 'Review queue', c.review)}${a('/work/manage', 'cal', 'Published events')}` : ''}
-      ${can('admin') ? html`<h2>Administration</h2>${a('/work/users', 'shield', 'Users and roles')}${a('/work/venues', 'pin', 'Venues')}${a('/work/site', 'image', 'Site photos')}${a('/work/audit', 'file', 'Audit log')}${a('/work/backups', 'db', 'Backups')}` : ''}
+      ${can('admin') ? html`<h2>Administration</h2>${a('/work/users', 'shield', 'Users and roles', c.waiting)}${a('/work/venues', 'pin', 'Venues')}${a('/work/site', 'image', 'Site photos')}${a('/work/audit', 'file', 'Audit log')}${a('/work/backups', 'db', 'Backups')}` : ''}
     </nav>
     <div class="main" id="main">${content}</div>
     <nav class="bottombar" aria-label="Workspace shortcuts">
@@ -605,22 +606,34 @@ export async function messageForm({ el, path, params }) {
 // ---------------- USERS ----------------
 export async function users({ el, path }) {
   const { users: list } = await api('/api/users');
-  const roleSel = (u) => html`<select class="input" data-role="${u.id}" style="height:34px" ${u.id === state.me.id ? raw('disabled') : ''} aria-label="Role for ${u.name}">${['organiser', 'approver', 'admin'].map(r => html`<option ${u.role === r ? raw('selected') : ''}>${r}</option>`)}</select>`;
+  const ROLE_LABEL = { staff: 'No role yet', organiser: 'Organiser', approver: 'Approver', admin: 'Administrator' };
+  const roleSel = (u) => html`<select class="input" data-role="${u.id}" style="height:34px" ${u.id === state.me.id ? raw('disabled') : ''} aria-label="Role for ${u.name}">${Object.entries(ROLE_LABEL).map(([r, l]) => html`<option value="${r}" ${u.role === r ? raw('selected') : ''}>${l}</option>`)}</select>`;
+  const deptSel = (u) => html`<select class="input" data-dept="${u.id}" style="height:34px" aria-label="Department for ${u.name}">${state.meta.departments.map(d => html`<option value="${d.id}" ${u.department === d.id ? raw('selected') : ''}>${d.short}</option>`)}</select>`;
+  const status = u => u.active ? html`<span class="pill published">Active</span>` : html`<span class="pill draft">Deactivated</span>`;
+  const acts = u => html`<div class="acts"><button class="btn ghost sm" data-act="reset" data-id="${u.id}">Reset password</button>${u.id !== state.me.id ? html`<button class="btn ${u.active ? 'danger' : ''} sm" data-act="toggle" data-id="${u.id}">${u.active ? 'Deactivate' : 'Reactivate'}</button>` : ''}</div>`;
+  const who = u => html`<td class="title"><b>${u.name}</b>${u.id === state.me.id ? html` <span class="small muted">(you)</span>` : ''}<br><span class="small muted">${u.email}</span></td>`;
+  const waiting = list.filter(u => u.role === 'staff' && u.active);
+  const staff = list.filter(u => u.role !== 'student' && !(u.role === 'staff' && u.active));
+  const students = list.filter(u => u.role === 'student');
   const main = await layout(el, path, html`
-    ${head('Users and roles', 'Least privilege: give each person the lowest role they need.')}
+    ${head('Users and roles', 'Staff create their own accounts with their email; you give each person the lowest role they need. Students sign up with their registration number.')}
+    ${waiting.length ? html`<section class="panel" style="border-left:4px solid var(--orange)"><header><h2>Waiting for a role <span class="badge">${waiting.length}</span></h2></header>
+      <div class="table-wrap"><table class="t"><thead><tr><th>Name</th><th>Department</th><th>Signed up</th><th>Give a role</th></tr></thead><tbody>
+      ${waiting.map(u => html`<tr>${who(u)}<td>${deptSel(u)}</td><td class="small">${D.stamp(u.createdAt)}</td>
+        <td><div class="acts">${['organiser', 'approver', 'admin'].map(r => html`<button class="btn ${r === 'organiser' ? '' : 'ghost'} sm" data-give="${r}" data-id="${u.id}">${ROLE_LABEL[r]}</button>`)}</div></td></tr>`)}
+      </tbody></table></div></section>` : ''}
+    <h2 style="margin:8px 0 12px">Staff</h2>
     <div class="panel table-wrap"><table class="t"><thead><tr><th>Name</th><th>Role</th><th>Department</th><th>Status</th><th></th></tr></thead><tbody>
-      ${list.map(u => html`<tr>
-        <td class="title"><b>${u.name}</b>${u.id === state.me.id ? html` <span class="small muted">(you)</span>` : ''}<br><span class="small muted">${u.email}</span></td>
-        <td>${roleSel(u)}</td>
-        <td><select class="input" data-dept="${u.id}" style="height:34px" aria-label="Department for ${u.name}">${state.meta.departments.map(d => html`<option value="${d.id}" ${u.department === d.id ? raw('selected') : ''}>${d.short}</option>`)}</select></td>
-        <td>${u.active ? html`<span class="pill published">Active</span>` : html`<span class="pill draft">Deactivated</span>`}</td>
-        <td><div class="acts"><button class="btn ghost sm" data-act="reset" data-id="${u.id}">Reset password</button>${u.id !== state.me.id ? html`<button class="btn ${u.active ? 'danger' : ''} sm" data-act="toggle" data-id="${u.id}">${u.active ? 'Deactivate' : 'Reactivate'}</button>` : ''}</div></td>
-      </tr>`)}</tbody></table></div>
+      ${staff.map(u => html`<tr>${who(u)}<td>${roleSel(u)}</td><td>${deptSel(u)}</td><td>${status(u)}</td><td>${acts(u)}</td></tr>`)}</tbody></table></div>
+    <h2 style="margin:8px 0 12px">Students <span class="small muted" style="font-weight:500">${students.length}</span></h2>
+    ${students.length ? html`<div class="panel table-wrap"><table class="t"><thead><tr><th>Name</th><th>Registration number</th><th>Faculty</th><th>Status</th><th></th></tr></thead><tbody>
+      ${students.map(u => html`<tr>${who(u)}<td><b>${u.regNumber}</b></td><td>${deptShort(u.department)}</td><td>${status(u)}</td><td>${acts(u)}</td></tr>`)}</tbody></table></div>`
+      : html`<p class="muted" style="margin-bottom:24px">No students have created an account yet.</p>`}
     <section class="panel"><header><h2>Add a user</h2></header>
       <form class="pad" id="nu">
         <div class="row">
           <label class="field"><span>Full name</span><input class="input" name="name" required></label>
-          <label class="field"><span>University email</span><input class="input" name="email" type="email" required></label>
+          <label class="field"><span>Email</span><input class="input" name="email" type="email" required></label>
         </div>
         <div class="row">
           <label class="field"><span>Role</span><select class="input" name="role"><option value="organiser">Organiser: submits events</option><option value="approver">Approver: reviews and publishes</option><option value="admin">Administrator: full control</option></select></label>
@@ -633,11 +646,17 @@ export async function users({ el, path }) {
   const upd = async (id, body, msg) => { try { await api('/api/users/' + id, { method: 'PUT', body }); toast(msg); rerender(); } catch (err) { toast(err.message, true); rerender(); } };
   main.querySelectorAll('[data-role]').forEach(s => s.onchange = async () => {
     const u = list.find(x => x.id === s.dataset.role);
-    if (!await ask({ title: 'Change role?', text: `${u.name}: ${u.role} → ${s.value}. This is recorded in the audit log.`, confirm: 'Change role' })) { s.value = u.role; return; }
+    if (!await ask({ title: 'Change role?', text: `${u.name}: ${ROLE_LABEL[u.role]} → ${ROLE_LABEL[s.value]}. This is recorded in the audit log.`, confirm: 'Change role' })) { s.value = u.role; return; }
     upd(u.id, { role: s.value }, 'Role updated.');
   });
   main.querySelectorAll('[data-dept]').forEach(s => s.onchange = () => upd(s.dataset.dept, { department: s.value }, 'Department updated.'));
   main.onclick = async ev => {
+    const g = ev.target.closest('[data-give]');
+    if (g) {
+      const u = list.find(x => x.id === g.dataset.id);
+      if (await ask({ title: `Make ${u.name} ${ROLE_LABEL[g.dataset.give].toLowerCase()}?`, text: 'They get the new screens the next time a page loads. This is recorded in the audit log.', confirm: 'Give role' })) upd(u.id, { role: g.dataset.give }, 'Role given.');
+      return;
+    }
     const b = ev.target.closest('[data-act]');
     if (!b) return;
     const u = list.find(x => x.id === b.dataset.id);

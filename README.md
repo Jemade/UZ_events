@@ -12,9 +12,17 @@ Built by Jayden Mapasure and Nyasha Madoro.
    - `ADMIN_NAME`: their display name.
    - `ADMIN_PASSWORD`: at least 10 characters. Keep it out of documents and chat; share it in person.
 3. Click **Apply**. After the build, the site is at `https://<service-name>.onrender.com`.
-4. Staff sign in at `https://<service-name>.onrender.com/#/staff`. The public site has no sign-in link, so visitors never see the staff side.
+4. Everyone signs in at `https://<service-name>.onrender.com/#/login` (the **Sign in** button on every public page).
 
-A new installation starts with UZ's departments, venues and visitor screens, the home and sign-in photos from `seed-photos/`, and one administrator. The administrator then adds staff accounts under **Workspace → Users and roles**.
+## Accounts and roles
+
+- **Students** choose **Create account → Student** and enter their registration number (for example `R2420211`, any case) and their student email. The email must be that number at `students.uz.ac.zw` (`r2420211@students.uz.ac.zw`), otherwise the account is refused. They sign in with the registration number and land on **My events**: saved events and what their faculty has coming up.
+- **Staff** choose **Create account → Staff** and use their own email. They start with no role and land on **My events** with a notice. The administrator is notified and gives them a role under **Users and roles → Waiting for a role**.
+- **Organisers, approvers and administrators** land in the **Workspace** and see only the screens their role allows. Student accounts can never be given a staff role.
+
+The student email check confirms that the email and the registration number belong together. It does not yet send a code to the inbox, because email delivery is not connected (see the outbox under Workspace).
+
+A new installation starts with UZ's departments, venues and lobby screens, the home and sign-in photos from `seed-photos/`, and one administrator. Staff and students then create their own accounts, and the administrator gives staff their roles under **Workspace → Users and roles** (or adds staff directly there).
 
 **Render's free plan has no permanent disk.** Every restart, redeploy, or sleep after 15 idle minutes starts the site afresh from the state above, and everything created is lost. For continued use, move to a paid instance, add a persistent disk mounted at `/var/data`, and set `DATA_DIR=/var/data`. Until then, use **Workspace → Backups → Download** to keep a copy.
 
@@ -32,10 +40,10 @@ A new installation starts with UZ's departments, venues and visitor screens, the
 
 ```bash
 npm start          # http://localhost:3000 — no npm install needed, zero dependencies, Node 18+
-npm test           # 15 automated tests
+npm test           # 19 automated tests
 ```
 
-Locally the site starts with sample data. All five sample accounts use the password `UZevents2026`: `admin@uz.ac.zw`, `approver.reg@uz.ac.zw` (central approver), `approver.eng@uz.ac.zw`, `organiser.eng@uz.ac.zw`, `organiser.sa@uz.ac.zw`. To start again, stop the server and delete `data/`.
+Locally the site starts with sample data. All sample accounts use the password `UZevents2026`: `admin@uz.ac.zw`, `approver.reg@uz.ac.zw` (central approver), `approver.eng@uz.ac.zw`, `organiser.eng@uz.ac.zw`, `organiser.sa@uz.ac.zw`, the student `R2400001`, and `chipo.mlambo@example.com` (staff waiting for a role). To start again, stop the server and delete `data/`.
 
 ## Architecture
 

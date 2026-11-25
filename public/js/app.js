@@ -12,7 +12,10 @@ const ROUTES = [
   ['/event/:id', pub.eventDetail],
   ['/archive', pub.archive],
   ['/display/:id', display.display, { bare: true }],
+  ['/login', pub.login],
+  ['/signup', pub.signup],
   ['/staff', pub.login],
+  ['/me', pub.myEvents, { auth: true }],
   ['/work', work.overview, { role: 'organiser' }],
   ['/work/events', work.myEvents, { role: 'organiser' }],
   ['/work/events/new', work.eventForm, { role: 'organiser' }],
@@ -34,8 +37,8 @@ const ROUTES = [
   return { pattern, re, keys, view, ...opts };
 });
 
-const RANK = { organiser: 1, approver: 2, admin: 3 };
-export const can = role => !!state.me && RANK[state.me.role] >= RANK[role];
+const RANK = { student: 0, staff: 0, organiser: 1, approver: 2, admin: 3 };
+export const can = role => !!state.me && (RANK[state.me.role] || 0) >= RANK[role];
 
 export const go = (hash) => { location.hash = hash; };
 export const today = () => state.meta.now.slice(0, 10);
@@ -50,7 +53,7 @@ function chrome(path) {
   const me = state.me;
   const on = p => (p === '/' ? path === '/' : path.startsWith(p)) ? 'on' : '';
   // Staff pages (sign-in and workspace) get their own header: no public menu, just who you are and the way out.
-  if (path.startsWith('/work') || path === '/staff') {
+  if (path.startsWith('/work')) {
     return html`<header class="masthead staffhead"><div class="wrap">
       <a class="brand" href="${me ? '#/work' : '#/staff'}" aria-label="UZ Events staff workspace">
         <img src="/assets/uz-crest.png" alt="University of Zimbabwe crest" width="53" height="54">
@@ -77,7 +80,10 @@ function chrome(path) {
       <a href="#/archive" class="${on('/archive')}">Archive</a>
     </nav>
     <div class="who">
-      ${me ? html`<a class="btn sm" href="#/work">Go to workspace</a>` : ''}
+      ${me ? html`
+        ${can('organiser') ? html`<a class="btn sm" href="#/work">Go to workspace</a>` : html`<a class="btn sm ${on('/me')}" href="#/me">My events</a>`}
+        <button class="btn ghost sm" id="logoutBtn">Sign out</button>`
+      : html`<a class="btn ghost sm" href="#/login">Sign in</a><a class="btn sm" href="#/signup">Create account</a>`}
     </div>
   </div></header>`;
 }
@@ -91,7 +97,7 @@ function footer() {
         <p class="small">The official source for events at the University of Zimbabwe, Mount Pleasant, Harare.</p>
       </div>
       <div><h2>Find events</h2><a href="#/">What’s on</a><a href="#/calendar">Calendar</a><a href="#/archive">Archive</a><a href="/api/calendar.ics">Calendar feed (.ics)</a></div>
-      ${state.me ? html`<div><h2>Your workspace</h2><a href="#/work">Workspace</a><a href="#/work/events/new">Submit an event</a><a href="#/work/messages/new">Request a welcome message</a></div>` : html`<div><h2>University</h2><a href="https://www.uz.ac.zw/" rel="noopener">University website</a><a href="https://www.uz.ac.zw/index.php/news-events" rel="noopener">University news</a></div>`}
+      ${state.me && !can('organiser') ? html`<div><h2>Your account</h2><a href="#/me">My events</a><a href="#/calendar">Calendar</a></div>` : state.me ? html`<div><h2>Your workspace</h2><a href="#/work">Workspace</a><a href="#/work/events/new">Submit an event</a><a href="#/work/messages/new">Request a welcome message</a></div>` : html`<div><h2>University</h2><a href="https://www.uz.ac.zw/" rel="noopener">University website</a><a href="https://www.uz.ac.zw/index.php/news-events" rel="noopener">University news</a></div>`}
       <div><h2>Contact</h2><p class="small">Events Office, Registrar’s Department<br>630 Churchill Avenue, Mount Pleasant, Harare</p><a href="https://www.uz.ac.zw/" rel="noopener">www.uz.ac.zw</a></div>
     </div>
     <div class="base"><div class="wrap"><span>© ${state.meta.now.slice(0, 4)} University of Zimbabwe</span><span>Events Office · Registrar’s Department</span></div></div>
@@ -110,6 +116,7 @@ async function render() {
   const el = document.getElementById('app');
   // Staff and admin areas are invisible to anyone without the right role:
   // they get the same "Page not found" as a URL that does not exist.
+  if (route && route.auth && !state.me) { go('#/login' + '?next=' + encodeURIComponent(path)); return; }
   if (!route || (route.role && !can(route.role))) {
     if (window.__cleanup) { window.__cleanup(); window.__cleanup = null; }
     document.body.classList.remove('bare');

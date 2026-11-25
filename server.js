@@ -113,7 +113,13 @@ function audit(user, action, target, detail = '') {
 }
 
 const userName = id => (db.users.find(u => u.id === id) || {}).name || 'Unknown user';
-const publicUser = u => ({ id: u.id, name: u.name, email: u.email, role: u.role, department: u.department, active: u.active, createdAt: u.createdAt });
+const publicUser = u => ({ id: u.id, name: u.name, email: u.email, role: u.role, department: u.department, active: u.active, createdAt: u.createdAt,
+  regNumber: u.regNumber ? u.regNumber.toUpperCase() : undefined, saved: u.saved || [] });
+// Students sign in with their registration number (any case, e.g. r2420211 or R2420211);
+// their email must be that number at the student domain, e.g. r2420211@students.uz.ac.zw.
+const STUDENT_DOMAIN = 'students.uz.ac.zw';
+const REG_NUMBER = /^r\d{6,8}[a-z]?$/;
+const normReg = v => String(v || '').trim().toLowerCase();
 
 function str(v, field, { min = 0, max = 200, required = false } = {}) {
   if (v === undefined || v === null) v = '';
@@ -349,7 +355,61 @@ function need(u, role) {
 const getEvent = id => { const e = db.events.find(x => x.id === id); if (!e) throw notFound('Event not found.'); return e; };
 const getMessage = id => { const m = db.messages.find(x => x.id === id); if (!m) throw notFound('Message not found.'); return m; };
 
-route('GET', '/api/me', ({ u }) => ({ user: u ? publicUser(u) : null }));
+route('GET', '/api/me', ({ member }) => ({ user: member ? publicUser(member) : null }));
+
+const clientIp = req => (config.trustProxy && String(req.headers['x-forwarded-for'] || '').split(',')[0].trim()) || req.socket.remoteAddress;
+
+// Self-service accounts. Students are checked against their registration number and student email.
+// Staff use their own email for now and start with no role ("staff") until an administrator gives them one.
+route('POST', '/api/signup', ({ req, body }) => {
+  const key = 'signup|' + clientIp(req);
+  if (A.throttled(key)) throw new HttpError(429, 'Too many new accounts from this connection. Please wait 10 minutes and try again.');
+  const kind = body.kind === 'staff' ? 'staff' : body.kind === 'student' ? 'student' : null;
+  if (!kind) throw bad('Choose student or staff.');
+  const name = str(body.name, 'Full name', { min: 2, max: 100, required: true });
+  const email = str(body.email, 'Email', { max: 120, required: true }).toLowerCase();
+  if (!EMAIL.test(email)) throw bad('Email is not valid.');
+  if (!db.departments.some(d => d.id === body.department)) throw bad('Choose your faculty or department.');
+  const password = String(body.password || '');
+  if (password.length < 10) throw bad('Password must be at least 10 characters.');
+  if (body.confirm !== undefined && String(body.confirm) !== password) throw bad('The two passwords do not match.');
+  let regNumber;
+  if (kind === 'student') {
+    regNumber = normReg(body.regNumber);
+    if (!REG_NUMBER.test(regNumber)) throw bad('Registration number is not valid. It starts with R followed by digits, for example R2420211.');
+    if (email !== `${regNumber}@${STUDENT_DOMAIN}`) throw bad(`Use your student email: ${regNumber}@${STUDENT_DOMAIN}. It must match your registration number.`);
+    if (db.users.some(x => x.regNumber === regNumber)) throw bad('An account with that registration number already exists. Sign in instead.');
+  } else if (email.endsWith('@' + STUDENT_DOMAIN)) {
+    throw bad('That is a student email. Create a student account instead.');
+  }
+  if (db.users.some(x => x.email.toLowerCase() === email)) throw bad('An account with that email already exists. Sign in instead.');
+  A.recordFailure(key);
+  const { salt, hash } = A.hashPassword(password);
+  const nu = { id: store.nextId('u'), name, email, role: kind, department: body.department, salt, hash, active: true, createdAt: T.harareNow(), saved: [] };
+  if (regNumber) nu.regNumber = regNumber;
+  db.users.push(nu);
+  audit(nu, 'auth.signup', nu.id, kind === 'student' ? `student ${regNumber.toUpperCase()}` : `staff ${email}, waiting for a role`);
+  if (kind === 'staff') {
+    for (const admin of db.users.filter(x => x.role === 'admin' && x.active)) {
+      db.notifications.push({ id: store.nextId('n'), userId: admin.id, at: T.harareNow(), href: '#/work/users', readAt: null,
+        message: `${name} (${email}) created a staff account and is waiting for a role.` });
+    }
+  }
+  store.save();
+  return { user: { name: nu.name, role: nu.role, regNumber: regNumber ? regNumber.toUpperCase() : undefined, email } };
+});
+
+// A student's or staff member's own saved events.
+route('POST', '/api/me/saved', ({ member, body }) => {
+  if (!member) throw new HttpError(401, 'Please sign in.');
+  const e = getEvent(String(body.eventId || ''));
+  if (!LIVE.includes(e.status) || !canView(member, e)) throw notFound('Event not found.');
+  member.saved = (member.saved || []).filter(id => id !== e.id && db.events.some(x => x.id === id));
+  if (body.saved) member.saved.unshift(e.id);
+  member.saved = member.saved.slice(0, 200);
+  saveSoon();
+  return { saved: member.saved };
+});
 
 route('GET', '/api/updates', ({ u }) => {
   need(u, 'organiser');
@@ -369,16 +429,16 @@ route('GET', '/api/admin/outbox', ({ u }) => {
 });
 
 route('POST', '/api/login', async ({ req, body, res }) => {
-  const email = String(body.email || '').trim().toLowerCase();
-  const ip = (config.trustProxy && String(req.headers['x-forwarded-for'] || '').split(',')[0].trim()) || req.socket.remoteAddress;
-  const key = email + '|' + ip;
+  // One sign-in for everyone: a registration number (students) or an email address (staff and students).
+  const id = String(body.login ?? body.email ?? '').trim().toLowerCase();
+  const key = id + '|' + clientIp(req);
   if (A.throttled(key)) throw new HttpError(429, 'Too many attempts. Please wait 10 minutes and try again.');
-  const u = db.users.find(x => x.email.toLowerCase() === email);
+  const u = REG_NUMBER.test(id) ? db.users.find(x => x.regNumber === id) : db.users.find(x => x.email.toLowerCase() === id);
   if (!u || !u.active || !A.verifyPassword(String(body.password || ''), u.salt, u.hash)) {
     A.recordFailure(key);
-    audit(null, 'auth.failed', email);
+    audit(null, 'auth.failed', id.slice(0, 120));
     saveSoon();
-    throw new HttpError(401, 'Email or password is incorrect.');
+    throw new HttpError(401, REG_NUMBER.test(id) ? 'Registration number or password is incorrect.' : 'Email or password is incorrect.');
   }
   A.clearFailures(key);
   const token = A.createSession(u.id);
@@ -388,7 +448,7 @@ route('POST', '/api/login', async ({ req, body, res }) => {
   return { user: publicUser(u) };
 });
 
-route('POST', '/api/logout', ({ req, res, u }) => {
+route('POST', '/api/logout', ({ req, res, member: u }) => {
   A.destroySession(cookies(req).uzsid);
   res.setHeader('Set-Cookie', 'uzsid=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0');
   if (u) audit(u, 'auth.logout', u.email);
@@ -400,7 +460,7 @@ route('GET', '/api/meta', () => ({
   settings: db.settings,
 }));
 
-route('GET', '/api/events', ({ u, q }) => {
+route('GET', '/api/events', ({ u, member, q }) => {
   const scope = q.scope || 'public';
   const text = (q.q || '').toLowerCase().trim();
   const match = e => {
@@ -418,7 +478,7 @@ route('GET', '/api/events', ({ u, q }) => {
     const to = /^\d{4}-\d{2}-\d{2}$/.test(q.to || '') ? q.to : T.addDays(today + 'T00:00', 365).slice(0, 10);
     const list = [];
     for (const e of db.events) {
-      if (!LIVE.includes(e.status) || !canView(u, e) || !match(e)) continue;
+      if (!LIVE.includes(e.status) || !canView(member, e) || !match(e)) continue;
       if (q.hideCancelled && e.status === 'cancelled') continue;
       for (const o of occurrences(e, from, to)) {
         list.push({ ...eventOut(e, u, { seriesStart: e.start }), start: o.start, end: o.end, occurrence: o.index, history: undefined, description: undefined });
@@ -437,9 +497,9 @@ route('GET', '/api/events', ({ u, q }) => {
   return { events: list.map(e => eventOut(e, u, { conflicts: ['submitted', 'published', 'postponed'].includes(e.status) ? findConflicts(e, e.id) : [] })) };
 });
 
-route('GET', '/api/events/:id', ({ u, p, q }) => {
+route('GET', '/api/events/:id', ({ u, member, p, q }) => {
   const e = getEvent(p.id);
-  if (!canView(u, e)) throw notFound('Event not found.');
+  if (!canView(u, e) && !(LIVE.includes(e.status) && canView(member, e))) throw notFound('Event not found.');
   if (q.view === '1' && !u) { e.views = (e.views || 0) + 1; saveSoon(); }
   return { event: eventOut(e, u, { conflicts: u ? findConflicts(e, e.id) : undefined }) };
 });
@@ -685,6 +745,7 @@ route('GET', '/api/stats', ({ u }) => {
 route('GET', '/api/users', ({ u }) => { need(u, 'admin'); return { users: db.users.map(publicUser) }; });
 
 const ROLES = ['organiser', 'approver', 'admin'];
+const STAFF_ROLES = ['staff', ...ROLES]; // "staff" = signed up, no workspace role yet
 route('POST', '/api/users', ({ u, body }) => {
   need(u, 'admin');
   const name = str(body.name, 'Name', { min: 2, max: 100, required: true });
@@ -709,9 +770,12 @@ route('PUT', '/api/users/:id', ({ u, p, body }) => {
   if (!t) throw notFound('User not found.');
   const changes = [];
   if (body.role !== undefined && body.role !== t.role) {
-    if (!ROLES.includes(body.role)) throw bad('Choose a valid role.');
+    if (t.role === 'student') throw bad('Student accounts keep the student role.');
+    if (!STAFF_ROLES.includes(body.role)) throw bad('Choose a valid role.');
     if (t.id === u.id) throw bad('You cannot change your own role.');
     changes.push(`role ${t.role} → ${body.role}`); t.role = body.role;
+    const label = { staff: 'no workspace role', organiser: 'the organiser role', approver: 'the approver role', admin: 'the administrator role' }[t.role];
+    db.notifications.push({ id: store.nextId('n'), userId: t.id, at: T.harareNow(), href: '#/work', readAt: null, message: `An administrator gave you ${label}.` });
   }
   if (body.department !== undefined && body.department !== t.department) {
     if (!db.departments.some(d => d.id === body.department)) throw bad('Choose a valid department.');
@@ -885,7 +949,11 @@ const server = http.createServer(async (req, res) => {
     const p = {}; r.keys.forEach((k, i) => { p[k] = decodeURIComponent(m[i + 1]); });
     const body = req.method === 'GET' ? {} : await readBody(req, url.pathname === '/api/admin/restore' ? B.MAX_BYTES + 1024 : url.pathname === '/api/uploads' ? 5 * 1024 * 1024 : 1e6);
     const q = Object.fromEntries(url.searchParams);
-    const result = await r.handler({ req, res, u: currentUser(req), p, q, body });
+    // member: anyone signed in (students and staff waiting for a role included).
+    // u: only people with a workspace role; every staff permission check uses it.
+    const member = currentUser(req);
+    const u = member && A.atLeast(member, 'organiser') ? member : null;
+    const result = await r.handler({ req, res, u, member, p, q, body });
     if (!res.headersSent && result !== undefined) send(res, 200, result);
   } catch (err) {
     if (err instanceof HttpError) return send(res, err.status, { error: err.message, ...(err.extra || {}) });

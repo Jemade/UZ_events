@@ -759,3 +759,12 @@ label.btn:focus-within { outline: 3px solid var(--navy); outline-offset: 3px; }
   body.cal-fit .mini h3 { margin-bottom: 4px; font-size: 15px; }
   body.cal-fit .mini .g a { padding: 2px 0; }
 }
+
+/* Saved events (My events) and the signed-out header buttons */
+.saved-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; }
+.saved-row .ev-row { min-width: 0; }
+.login .tabs { margin-bottom: 20px; }
+.login .banner { margin-bottom: 16px; }
+@media (max-width: 560px) {
+  .masthead .who a[href="#/signup"] { display: none; }
+}

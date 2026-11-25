@@ -1,6 +1,6 @@
 import { html, raw, api, D, icon, toast, tag, qs, empty } from '../util.js';
 import { ico, categoryArt, campusArt } from '../art.js';
-import { state, go, today, render, refreshMe } from '../app.js';
+import { state, go, today, render, refreshMe, can } from '../app.js';
 
 const put = (el, tpl) => { el.innerHTML = String(tpl); };
 const evHref = e => `#/event/${e.id}${e.occurrence ? '?on=' + encodeURIComponent(e.start) : ''}`;
@@ -141,7 +141,8 @@ export async function eventDetail({ el, params, query }) {
     start = query.on; end = new Date(Date.parse(start + ':00Z') + dur).toISOString().slice(0, 16);
   }
   const d = D.parse(start);
-  const staff = !!state.me;
+  const staff = can('organiser');
+  const isSaved = !!state.me && (state.me.saved || []).includes(e.id);
   const isPast = end < state.meta.now;
   const notes = e.history.filter(h => ['amended', 'rescheduled', 'postponed', 'cancelled', 'reinstated'].includes(h.action));
   const lastCancel = [...e.history].reverse().find(h => h.action === 'cancelled' || h.action === 'postponed');
@@ -159,7 +160,7 @@ export async function eventDetail({ el, params, query }) {
       ${e.status === 'cancelled' ? html`<div class="banner cancelled"><b>This event has been cancelled.</b>${lastCancel && lastCancel.note ? html`<p>${lastCancel.note}</p>` : ''}</div>` : ''}
       ${e.status === 'postponed' ? html`<div class="banner postponed"><b>This event has been postponed. A new date will be announced.</b>${lastCancel && lastCancel.note ? html`<p>${lastCancel.note}</p>` : ''}</div>` : ''}
       ${!['published', 'postponed', 'cancelled'].includes(e.status) ? html`<div class="banner info"><b>Preview: not public.</b><p>This event is “${e.status}”. Only staff with access can see this page.</p></div>` : ''}
-      ${!e.isPublic ? html`<div class="banner info"><b>Internal event</b><p>Visible to signed-in university staff only.</p></div>` : ''}
+      ${!e.isPublic ? html`<div class="banner info"><b>Internal event</b><p>Visible to signed-in university staff and students only.</p></div>` : ''}
       ${isPast && e.status !== 'cancelled' ? html`<div class="banner info"><b>This event has ended.</b><p>It is kept in the <a href="#/archive">events archive</a> for the university record.</p></div>` : ''}
       <figure class="cover">${photo(e)}</figure>
       ${e.summary ? html`<p class="lede">${e.summary}</p>` : ''}
@@ -185,6 +186,7 @@ export async function eventDetail({ el, params, query }) {
       </dl>
       <div class="actions">
         ${['published', 'postponed'].includes(e.status) ? html`<a class="btn" href="/api/events/${e.id}/ics">${icon.cal} Add to my calendar</a>` : ''}
+        ${state.me && ['published', 'postponed'].includes(e.status) ? html`<button class="btn ${isSaved ? 'ghost' : 'orange'}" id="save" aria-pressed="${isSaved}">${isSaved ? 'Saved to my events' : 'Save to my events'}</button>` : ''}
         <button class="btn ghost" id="copy">${icon.link} Copy link</button>
         <button class="btn ghost" id="print">${icon.print} Print</button>
         ${e.canEdit ? html`<a class="btn orange" href="#/work/events/${e.id}/edit">Edit event</a>` : ''}
@@ -195,6 +197,15 @@ export async function eventDetail({ el, params, query }) {
     try { await navigator.clipboard.writeText(location.href); toast('Link copied to your clipboard.'); } catch { toast('Copy failed. Use the address bar instead.', true); }
   };
   el.querySelector('#print').onclick = () => window.print();
+  const save = el.querySelector('#save');
+  if (save) save.onclick = async () => {
+    try {
+      await api('/api/me/saved', { method: 'POST', body: { eventId: e.id, saved: !isSaved } });
+      await refreshMe();
+      toast(isSaved ? 'Removed from your saved events.' : 'Saved. Find it under My events.');
+      render();
+    } catch (x) { toast(x.message, true); }
+  };
 }
 
 // ---------------- ARCHIVE ----------------
@@ -232,43 +243,166 @@ export async function archive({ el, query }) {
   };
 }
 
-// ---------------- STAFF SIGN IN ----------------
-export async function login({ el, query }) {
-  if (state.me) { go('#/work'); return; }
-  const st = state.meta.settings || {};
+// ---------------- SIGN IN AND CREATE ACCOUNT ----------------
+// Where each person lands after signing in: staff with a role go to the workspace,
+// students and staff still waiting for a role go to My events.
+export const homeFor = me => (me && ['organiser', 'approver', 'admin'].includes(me.role) ? '/work' : '/me');
+const STUDENT_DOMAIN = 'students.uz.ac.zw';
+
+function authShell(el, st, left, rightTitle, rightText) {
   put(el, html`<div class="login">
-    <div class="pane left">
-      <img src="/assets/uz-crest.png" alt="University of Zimbabwe crest" width="82" height="84">
-      <div class="eyebrow">Staff</div>
-      <h1>Sign in to UZ Events</h1>
-      <p class="muted" style="margin-bottom:26px">Use your university email address.</p>
-      <form id="lf" novalidate>
-        <div id="err"></div>
-        <label class="field"><span>University email</span><input class="input" type="email" name="email" autocomplete="username" required></label>
-        <label class="field"><span>Password</span><input class="input" type="password" name="password" autocomplete="current-password" required></label>
-        <button class="btn" style="width:100%;height:48px">Sign in</button>
-      </form>
-    </div>
+    <div class="pane left">${left}</div>
     <div class="right">
       <div class="ph">${st.loginImage ? html`<img src="${st.loginImage}" alt="${st.loginAlt || 'University of Zimbabwe campus'}">` : campusArt()}</div>
       <div class="txt">
-        <div class="eyebrow">Authorised staff only</div>
-        <h2 style="margin:8px 0 8px">Access is by invitation</h2>
-        <p class="muted" style="max-width:440px;margin:0">Accounts are created by the Events Office for event organisers and approvers. If you need access, contact the Registrar’s Department.</p>
+        <div class="eyebrow">UZ Events</div>
+        <h2 style="margin:8px 0 8px">${rightTitle}</h2>
+        <p class="muted" style="max-width:440px;margin:0">${rightText}</p>
       </div>
     </div>
   </div>`);
+}
+const whoTabs = (base, as, extra = '') => html`<nav class="tabs" aria-label="Account type">
+  <a href="#${base}?as=student${extra}" class="${as === 'student' ? 'on' : ''}" ${as === 'student' ? raw('aria-current="page"') : ''}>Student</a>
+  <a href="#${base}?as=staff${extra}" class="${as === 'staff' ? 'on' : ''}" ${as === 'staff' ? raw('aria-current="page"') : ''}>Staff</a>
+</nav>`;
+
+export async function login({ el, query, path }) {
+  if (state.me) { go('#' + homeFor(state.me)); return; }
+  const as = query.as === 'staff' || (path === '/staff' && query.as !== 'student') ? 'staff' : 'student';
+  const st = state.meta.settings || {};
+  const student = as === 'student';
+  authShell(el, st, html`
+      <img src="/assets/uz-crest.png" alt="University of Zimbabwe crest" width="82" height="84">
+      <h1>Sign in</h1>
+      <p class="muted" style="margin-bottom:18px">${student ? 'Students sign in with their registration number.' : 'Staff sign in with the email address they registered with.'}</p>
+      ${whoTabs('/login', as)}
+      ${query.created ? html`<div class="banner info" role="status"><b>Account created.</b><p>${student ? 'Sign in with your registration number and password.' : 'Sign in with your email and password. An administrator will give you a role.'}</p></div>` : ''}
+      <form id="lf" novalidate>
+        <div id="err"></div>
+        ${student
+          ? html`<label class="field"><span>Registration number</span><input class="input" name="login" autocomplete="username" autocapitalize="characters" spellcheck="false" placeholder="For example R2420211" value="${query.reg || ''}" required></label>`
+          : html`<label class="field"><span>Email</span><input class="input" type="email" name="login" autocomplete="username" value="${query.email || ''}" required></label>`}
+        <label class="field"><span>Password</span><input class="input" type="password" name="password" autocomplete="current-password" required></label>
+        <button class="btn" style="width:100%;height:48px">Sign in</button>
+      </form>
+      <p class="small" style="margin-top:18px">No account yet? <a href="#/signup?as=${as}">Create ${student ? 'a student' : 'a staff'} account</a></p>`,
+    student ? 'Your events, in one place' : 'Staff access',
+    student ? 'Save the events you want to attend and see what your faculty has coming up.'
+      : 'Organisers submit events, approvers review them, and administrators manage the system. New staff accounts wait for an administrator to give them a role.');
   const form = el.querySelector('#lf');
+  form.login.focus();
   form.onsubmit = async ev => {
     ev.preventDefault();
+    const err = el.querySelector('#err');
+    const value = form.login.value.trim();
+    if (!value || !form.password.value) { err.innerHTML = String(html`<div class="error" role="alert">Enter your ${student ? 'registration number' : 'email'} and password.</div>`); return; }
     try {
-      await api('/api/login', { method: 'POST', body: { email: form.email.value, password: form.password.value } });
+      await api('/api/login', { method: 'POST', body: { login: value, password: form.password.value } });
       await refreshMe();
-      toast(`Welcome back, ${state.me.name}.`);
-      const next = query.next && query.next.startsWith('/') ? query.next : '/work';
+      toast(`Welcome, ${state.me.name}.`);
+      const dest = homeFor(state.me);
+      const next = query.next && query.next.startsWith('/') && (dest === '/work' || !query.next.startsWith('/work')) ? query.next : dest;
       if (location.hash === '#' + next) render(); else go('#' + next);
-    } catch (err) {
-      el.querySelector('#err').innerHTML = String(html`<div class="error" role="alert">${err.message}</div>`);
+    } catch (x) {
+      err.innerHTML = String(html`<div class="error" role="alert">${x.message}</div>`);
     }
+  };
+}
+
+export async function signup({ el, query }) {
+  if (state.me) { go('#' + homeFor(state.me)); return; }
+  const as = query.as === 'staff' ? 'staff' : 'student';
+  const student = as === 'student';
+  const st = state.meta.settings || {};
+  const depts = state.meta.departments.filter(d => student ? !['reg', 'vc'].includes(d.id) : true);
+  authShell(el, st, html`
+      <img src="/assets/uz-crest.png" alt="University of Zimbabwe crest" width="82" height="84">
+      <h1>Create an account</h1>
+      <p class="muted" style="margin-bottom:18px">${student ? 'Use your registration number and your student email.' : 'Use your own email address for now. An administrator gives staff their role.'}</p>
+      ${whoTabs('/signup', as)}
+      <form id="sf" novalidate>
+        <div id="err"></div>
+        <label class="field"><span>Full name</span><input class="input" name="name" autocomplete="name" required></label>
+        ${student ? html`
+          <label class="field"><span>Registration number</span><input class="input" name="regNumber" autocapitalize="characters" spellcheck="false" placeholder="For example R2420211" required></label>
+          <label class="field"><span>Student email</span><input class="input" type="email" name="email" autocomplete="email" placeholder="r2420211@${STUDENT_DOMAIN}" required><small id="emailHint">Your registration number followed by @${STUDENT_DOMAIN}</small></label>`
+        : html`<label class="field"><span>Email</span><input class="input" type="email" name="email" autocomplete="email" required></label>`}
+        <label class="field"><span>${student ? 'Faculty' : 'Department'}</span><select class="input" name="department" required><option value="">Choose…</option>${depts.map(d => html`<option value="${d.id}">${d.name}</option>`)}</select></label>
+        <label class="field"><span>Password</span><input class="input" type="password" name="password" minlength="10" autocomplete="new-password" required><small>At least 10 characters.</small></label>
+        <label class="field"><span>Confirm password</span><input class="input" type="password" name="confirm" minlength="10" autocomplete="new-password" required></label>
+        <button class="btn" style="width:100%;height:48px">Create account</button>
+      </form>
+      <p class="small" style="margin-top:18px">Already have an account? <a href="#/login?as=${as}">Sign in</a></p>`,
+    student ? 'For UZ students' : 'For UZ staff',
+    student ? `We check that your student email matches your registration number, for example R2420211 and r2420211@${STUDENT_DOMAIN}.`
+      : 'After you create your account, the administrator gives you a role: organiser, approver or administrator. Until then you can save events.');
+  const form = el.querySelector('#sf');
+  const err = el.querySelector('#err');
+  const fail = msg => { err.innerHTML = String(html`<div class="error" role="alert">${msg}</div>`); err.scrollIntoView({ block: 'nearest' }); };
+  if (student) {
+    // Fill in the student email from the registration number, as long as the student has not typed their own.
+    let typed = false;
+    form.email.oninput = () => { typed = true; };
+    form.regNumber.oninput = () => { if (!typed) form.email.value = form.regNumber.value.trim() ? form.regNumber.value.trim().toLowerCase() + '@' + STUDENT_DOMAIN : ''; };
+  }
+  form.onsubmit = async ev => {
+    ev.preventDefault();
+    const body = { kind: as, ...Object.fromEntries(new FormData(form)) };
+    if (body.name.trim().length < 2) return fail('Enter your full name.');
+    if (student) {
+      const reg = body.regNumber.trim().toLowerCase();
+      if (!/^r\d{6,8}[a-z]?$/.test(reg)) return fail('Registration number is not valid. It starts with R followed by digits, for example R2420211.');
+      if (body.email.trim().toLowerCase() !== `${reg}@${STUDENT_DOMAIN}`) return fail(`Your student email must be ${reg}@${STUDENT_DOMAIN}.`);
+    }
+    if (!body.department) return fail(`Choose your ${student ? 'faculty' : 'department'}.`);
+    if (body.password.length < 10) return fail('Password must be at least 10 characters.');
+    if (body.password !== body.confirm) return fail('The two passwords do not match.');
+    try {
+      const r = await api('/api/signup', { method: 'POST', body });
+      toast('Account created. Please sign in.');
+      go('#/login' + qs(student ? { as, created: 1, reg: r.user.regNumber } : { as, created: 1, email: r.user.email }));
+    } catch (x) { fail(x.message); }
+  };
+}
+
+// ---------------- MY EVENTS (students, and staff waiting for a role) ----------------
+export async function myEvents({ el }) {
+  const me = state.me;
+  const t = today();
+  const to = new Date(Date.parse(t + 'T00:00:00Z') + 180 * 86400000).toISOString().slice(0, 10);
+  const { events } = await api('/api/events' + qs({ from: t, to, hideCancelled: 1 }));
+  const upcoming = events.filter(e => e.end >= state.meta.now);
+  const savedIds = new Set(me.saved || []);
+  const saved = upcoming.filter(e => savedIds.has(e.id));
+  const seen = new Set();
+  const savedOnce = saved.filter(e => !seen.has(e.id) && seen.add(e.id));
+  const mine = upcoming.filter(e => e.departmentId === me.department).slice(0, 12);
+  const dept = state.meta.departments.find(d => d.id === me.department);
+  const waiting = me.role === 'staff';
+  document.title = 'My events · UZ Events';
+  put(el, html`
+  <div class="page-head"><div class="wrap">
+    <div class="eyebrow">${waiting ? 'Staff' : 'Student'}${me.regNumber ? ` · ${me.regNumber}` : ''}</div>
+    <h1 style="margin-top:8px">Welcome, ${me.name.split(' ')[0]}</h1>
+    <p class="muted" style="margin:6px 0 0">${dept ? dept.name : ''}</p>
+  </div></div>
+  <div class="wrap" style="padding-top:28px;padding-bottom:56px">
+    ${waiting ? html`<div class="banner info" role="status"><b>Your account is waiting for a role.</b><p>An administrator will make you an organiser, approver or administrator. Once they have, reload this page and your workspace opens. Until then you can browse and save events.</p></div>` : ''}
+    <section style="margin-bottom:40px">
+      <h2 style="margin-bottom:14px">Saved events</h2>
+      ${savedOnce.length ? html`<div>${savedOnce.map(e => html`<div class="saved-row">${evRow(e, { showDate: true, thumb: true })}<button class="btn ghost sm" data-unsave="${e.id}" aria-label="Remove ${e.title} from saved events">Remove</button></div>`)}</div>`
+        : empty('cal', 'No saved events yet', 'Open any event and choose “Save to my events”. It will appear here.', html`<a class="btn" href="#/">Browse what’s on</a>`, 3)}
+    </section>
+    <section>
+      <h2 style="margin-bottom:14px">Coming up in ${dept ? dept.short : 'your faculty'}</h2>
+      ${mine.length ? agenda(mine, t) : html`<p class="muted">Nothing scheduled yet. See <a href="#/calendar">the full calendar</a>.</p>`}
+    </section>
+  </div>`);
+  el.onclick = async ev => {
+    const b = ev.target.closest('[data-unsave]');
+    if (!b) return;
+    try { await api('/api/me/saved', { method: 'POST', body: { eventId: b.dataset.unsave, saved: false } }); await refreshMe(); toast('Removed from your saved events.'); render(); }
+    catch (x) { toast(x.message, true); }
   };
 }
