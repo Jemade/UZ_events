@@ -22,7 +22,7 @@ Built by Jayden Mapasure and Nyasha Madoro.
 
 The student email check confirms that the email and the registration number belong together. It does not yet send a code to the inbox, because email delivery is not connected (see the outbox under Workspace).
 
-A new installation starts with UZ's departments, venues (pinned to their buildings on the campus map), lobby screens, one administrator, and one sample event ("UZ Events walkthrough", two days after installation, in the Great Hall) so there is something to open and try. Staff and students then create their own accounts, and the administrator gives staff their roles under **Workspace → Users and roles** (or adds staff directly there).
+A new installation starts with UZ's departments, venues (pinned to their campus buildings for directions), lobby screens, one administrator, and one sample event ("UZ Events walkthrough", two days after installation, in the Great Hall) so there is something to open and try. Staff and students then create their own accounts, and the administrator gives staff their roles under **Workspace → Users and roles** (or adds staff directly there).
 
 **Render's free plan has no permanent disk.** Every restart, redeploy, or sleep after 15 idle minutes starts the site afresh from the state above, and everything created is lost. For continued use, move to a paid instance, add a persistent disk mounted at `/var/data`, and set `DATA_DIR=/var/data`. Until then, use **Workspace → Backups → Download** to keep a copy.
 
@@ -36,11 +36,11 @@ A new installation starts with UZ's departments, venues (pinned to their buildin
 | `PUBLIC_URL` | Address used in QR codes and for secure cookies; defaults to Render's own address |
 | `DATA_DIR` | Where data, photos and backups are stored (default `./data`) |
 
-## Calendar and campus map
+## Calendar and directions
 
-After signing in, the calendar is the whole page: no search box or filters, and it fits the screen. Clicking an event opens its details in a window over the calendar, with **Getting there**: a campus map with the walking route to the venue's building, its distance and walking time, a choice of starting point (main entrance on Churchill Avenue, UZ bus terminal, Main Library) and a button that opens the same directions in Google Maps.
+After signing in, the calendar is the whole page: no search box or filters, and it fits the screen. Clicking an event opens its details in a window over the calendar, with **Getting there**: the venue and an **Open directions in Google Maps** button. The link gives Google Maps the venue's building as the destination and no starting point, so Google Maps starts from wherever the person is (with their permission) and gives turn-by-turn directions.
 
-The map is the live OpenStreetMap street map (tiles from tile.openstreetmap.org, which the Content-Security-Policy allows; drag, zoom, pinch or use the keyboard). The walking route is worked out on campus paths from OpenStreetMap data in `public/assets/campus-map.json` (© OpenStreetMap contributors, ODbL), built by `tools/build-campus-map.mjs`. If the street map cannot load, the campus buildings and roads are drawn from that file instead. For heavy production use, move to a commercial tile provider in line with the OpenStreetMap tile usage policy. Administrators choose each venue's building under **Workspace → Venues**. Venues not on the map (Innovation Hub, Parirenyatwa Lecture Hall) show a Google Maps search link instead until a building is chosen.
+Building positions come from OpenStreetMap (`public/assets/campus-places.json`, © OpenStreetMap contributors, ODbL), built by `tools/build-campus-map.mjs`. Administrators choose each venue's building under **Workspace → Venues**. Venues with no building chosen (Innovation Hub, Parirenyatwa Lecture Hall) open a Google Maps search for the venue's name instead.
 
 ## Forms and buttons
 

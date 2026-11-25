@@ -74,7 +74,7 @@ export async function eventDetail({ el, params, query }) {
       <figure class="cover">${photo(e)}</figure>
       ${e.summary ? html`<p class="lede">${e.summary}</p>` : ''}
       <div class="body">${(e.description || '').split(/\n{2,}/).map(p => html`<p>${p}</p>`)}</div>
-      <section class="getting-there"><h2>Getting there</h2><div class="map-box" id="map"></div></section>
+      <section class="getting-there"><h2>Getting there</h2><div id="map"></div></section>
       ${notes.length ? html`<hr class="rule"><h2 style="margin-bottom:16px;font-size:var(--fs-h3)">Updates</h2>
         <ul class="timeline">${notes.slice().reverse().map(h => html`<li><span class="when">${D.stamp(h.at)}</span><br><b>${ACTION_TEXT[h.action] || h.action}</b>${h.note ? html`: ${h.note}` : ''}</li>`)}</ul>` : ''}
       ${staff && e.createdByName ? html`<hr class="rule"><h2 style="margin-bottom:6px;font-size:var(--fs-h3)">Record</h2>
@@ -161,7 +161,7 @@ export async function eventDialog(id, on) {
           ${e.canEdit ? html`<a class="btn plain sm" href="#/work/events/${e.id}/edit">Edit event</a>` : ''}
         </div>
       </div>
-      <section aria-label="Getting there"><h3 class="evd-sub">Getting there</h3><div class="map-box" id="evdMap"><p class="muted small">Loading the campus map…</p></div></section>
+      <section class="evd-there" aria-label="Getting there"><h3 class="evd-sub">Getting there</h3><div id="evdMap"></div></section>
     </div>
   </div>`);
   document.body.appendChild(dlg);
@@ -185,7 +185,7 @@ export async function eventDialog(id, on) {
   dlg.showModal();
   dlg.querySelector('.evd-close').focus();
   venueMap(dlg.querySelector('#evdMap'), { placeId: e.venuePlace, venueName: e.venueName, venueLocation: e.venueLocation })
-    .catch(() => { dlg.querySelector('#evdMap').innerHTML = '<p class="muted small">The campus map could not be loaded.</p>'; });
+    .catch(() => {});
 }
 
 // ---------------- ARCHIVE ----------------

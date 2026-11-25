@@ -682,11 +682,11 @@ export async function venues({ el, path }) {
   const { loadMap } = await import('./campusmap.js');
   const map = await loadMap();
   const placeName = id => (map.places.find(p => p.id === id) || {}).name;
-  const placeSel = (value = '') => html`<select class="input" name="mapPlace"><option value="">Not on the map</option>${map.places.map(p => html`<option value="${p.id}" ${p.id === value ? raw('selected') : ''}>${p.name}</option>`)}</select>`;
+  const placeSel = (value = '') => html`<select class="input" name="mapPlace"><option value="">Not chosen (Google Maps searches by name)</option>${map.places.map(p => html`<option value="${p.id}" ${p.id === value ? raw('selected') : ''}>${p.name}</option>`)}</select>`;
   const main = await layout(el, path, html`
-    ${head('Venues', 'Venues are used for bookings, clash detection and the walking directions on each event.', html`<button class="btn" id="addVenue">${icon.plus} Add a venue</button>`)}
-    <div class="panel table-wrap"><table class="t"><thead><tr><th>Venue</th><th>Location</th><th>On the campus map</th><th style="text-align:right">Capacity</th><th></th></tr></thead><tbody>
-    ${state.meta.venues.map(v => html`<tr><td class="title"><b>${v.name}</b></td><td class="small">${v.location}</td><td class="small">${placeName(v.mapPlace) || html`<span class="muted">Not on the map</span>`}</td><td style="text-align:right">${v.capacity.toLocaleString('en-GB')}</td><td><div class="acts"><a class="btn ghost sm" href="#/calendar?view=week&venue=${v.id}">Bookings</a><button class="btn ghost sm" data-id="${v.id}">Edit</button></div></td></tr>`)}
+    ${head('Venues', 'Venues are used for bookings, clash detection and the Google Maps directions on each event.', html`<button class="btn" id="addVenue">${icon.plus} Add a venue</button>`)}
+    <div class="panel table-wrap"><table class="t"><thead><tr><th>Venue</th><th>Location</th><th>Building</th><th style="text-align:right">Capacity</th><th></th></tr></thead><tbody>
+    ${state.meta.venues.map(v => html`<tr><td class="title"><b>${v.name}</b></td><td class="small">${v.location}</td><td class="small">${placeName(v.mapPlace) || html`<span class="muted">Not chosen</span>`}</td><td style="text-align:right">${v.capacity.toLocaleString('en-GB')}</td><td><div class="acts"><a class="btn ghost sm" href="#/calendar?view=week&venue=${v.id}">Bookings</a><button class="btn ghost sm" data-id="${v.id}">Edit</button></div></td></tr>`)}
     </tbody></table></div>
     <p class="small muted">${map.attribution}</p>`);
   const done = async msg => { const { refreshMeta } = await import('../app.js'); await refreshMeta(); toast(msg); rerender(); };
@@ -696,7 +696,7 @@ export async function venues({ el, path }) {
       <label class="field"><span>Location</span><input class="input" name="location" value="${v.location || ''}"></label>
       <label class="field"><span>Capacity</span><input class="input" name="capacity" type="number" min="0" value="${v.capacity != null ? String(v.capacity) : ''}"></label>
     </div>
-    <label class="field"><span>Building on the campus map</span>${placeSel(v.mapPlace || '')}<small>Events here show a walking route to this building.</small></label>`;
+    <label class="field"><span>Building</span>${placeSel(v.mapPlace || '')}<small>Used for the Google Maps directions on its events.</small></label>`;
   main.querySelector('#addVenue').onclick = async () => {
     const added = await formDialog({ title: 'Add a venue', confirm: 'Add venue', body: venueFields() }, values => api('/api/venues', { method: 'POST', body: values }));
     if (added) done('Venue added.');

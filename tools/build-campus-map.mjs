@@ -1,4 +1,4 @@
-// Builds public/assets/campus-map.json from an OpenStreetMap export of the UZ campus.
+// Builds public/assets/campus-places.json (named UZ buildings and their positions) from an OpenStreetMap export.
 // Map data © OpenStreetMap contributors, available under the Open Database Licence (ODbL).
 //
 // 1. Download (Overpass API, any mirror), save as campus.json:
@@ -6,8 +6,8 @@
 //    way["leisure"](-17.7935,31.0440,-17.7770,31.0620);node["name"](-17.7935,31.0440,-17.7770,31.0620););out geom;
 // 2. node tools/build-campus-map.mjs campus.json
 //
-// Output: coordinates in metres east (x) and south (y) of the map's top-left corner,
-// buildings, roads and footpaths to draw, named places to pick venues from, and a walking graph for routes.
+// Output: the named campus buildings that venues can be pinned to, with latitude and longitude
+// for the Google Maps directions link.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -95,13 +95,12 @@ if (lib) starts.push({ id: 'library', name: 'UZ Main Library', node: nearestNode
 const SKIP = /^(Dr |Health First|mapped building$)/;
 for (let i = places.length - 1; i >= 0; i--) if (SKIP.test(places[i].name)) places.splice(i, 1);
 places.sort((a, b) => a.name.localeCompare(b.name));
+// Only the named buildings are kept: venues are pinned to one, and Google Maps gives the directions.
+const toLat = y => +(lat0 - y / 110574).toFixed(6), toLon = x => +(lon0 + x / (111320 * k)).toFixed(6);
 const out = {
-  attribution: 'Map data © OpenStreetMap contributors (ODbL)',
-  origin: { lat: lat0, lon: lon0, k, mPerDegLat: 110574, mPerDegLon: 111320 },
-  size: [W, H], buildings, roads, paths, pitches, places, starts,
-  graph: { nodes: gn, edges: ge },
+  attribution: 'Building names and positions © OpenStreetMap contributors (ODbL)',
+  places: places.map(p => ({ id: p.id, name: p.name, lat: toLat(p.y), lon: toLon(p.x) })),
 };
-const file = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public', 'assets', 'campus-map.json');
+const file = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public', 'assets', 'campus-places.json');
 fs.writeFileSync(file, JSON.stringify(out));
-console.log(`${buildings.length} buildings, ${roads.length} roads, ${paths.length} paths, ${places.length} places, graph ${gn.length} nodes / ${ge.length} edges, ${W}x${H} m, ${(fs.statSync(file).size / 1024).toFixed(0)} KB`);
-console.log('starts:', starts.map(s => s.name + ' @' + gn[s.node]).join(' | '));
+console.log(`${out.places.length} places, ${(fs.statSync(file).size / 1024).toFixed(1)} KB`);

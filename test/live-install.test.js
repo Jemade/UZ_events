@@ -21,9 +21,8 @@ test('a new live installation starts empty with one administrator and the bundle
   assert.equal(meta.departments.length, 12);
   assert.equal(meta.settings.publicUrl, 'https://uz-events.onrender.com', 'QR codes use the Render address');
   assert.equal(meta.venues.find(v => v.id === 'gh').mapPlace, 'w297130203', 'the Great Hall is on the campus map');
-  const map = await (await fetch(base + '/assets/campus-map.json')).json();
-  assert.ok(map.places.some(p => p.id === 'w297130203' && p.name === 'The Great Hall'));
-  assert.ok(map.starts.length >= 2 && map.graph.nodes.length > 500);
+  const map = await (await fetch(base + '/assets/campus-places.json')).json();
+  assert.ok(map.places.some(p => p.id === 'w297130203' && p.name === 'The Great Hall' && p.lat < -17.78 && p.lon > 31.05), 'the Great Hall has a position for directions');
   assert.equal((await fetch(base + '/api/events')).status, 401, 'events need an account');
   // the sample accounts do not exist here
   assert.equal((await post('/api/login', { email: 'admin@uz.ac.zw', password: 'UZevents2026' })).status, 401);
@@ -34,7 +33,7 @@ test('a new live installation starts empty with one administrator and the bundle
   const events = await (await fetch(base + '/api/events?from=2000-01-01&to=2100-01-01', { headers: { Cookie: ok.headers.get('set-cookie').split(';')[0] } })).json();
   assert.equal(events.events.length, 1, 'one sample event to try');
   assert.equal(events.events[0].venueId, 'gh');
-  assert.equal(events.events[0].venuePlace, 'w297130203', 'its venue is on the campus map');
+  assert.equal(events.events[0].venuePlace, 'w297130203', 'its venue has a building for directions');
 });
 
 test('sign-in throttling counts each visitor separately behind the proxy', async () => {

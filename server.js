@@ -30,8 +30,8 @@ function ensureSettings() {
   db.outbox ||= [];
 }
 ensureSettings();
-// Campus map places venues can be pinned to (built by tools/build-campus-map.mjs from OpenStreetMap).
-const MAP_PLACES = (() => { try { return new Set(JSON.parse(fs.readFileSync(path.join(PUBLIC_DIR, 'assets', 'campus-map.json'), 'utf8')).places.map(p => p.id)); } catch { return new Set(); } })();
+// Campus buildings venues can be pinned to for Google Maps directions (built by tools/build-campus-map.mjs).
+const MAP_PLACES = (() => { try { return new Set(JSON.parse(fs.readFileSync(path.join(PUBLIC_DIR, 'assets', 'campus-places.json'), 'utf8')).places.map(p => p.id)); } catch { return new Set(); } })();
 // Venues from before the campus map get their building from the standard list, if they have one.
 {
   const ref = new Map(reference().venues.map(v => [v.id, v.mapPlace]));
@@ -119,7 +119,7 @@ function str(v, field, { min = 0, max = 200, required = false } = {}) {
   if (v.length > max) throw bad(`${field} must be at most ${max} characters.`);
   return v;
 }
-const mapPlace = v => { const id = String(v || ''); if (!id) return null; if (!MAP_PLACES.has(id)) throw bad('Choose a building from the campus map list.'); return id; };
+const mapPlace = v => { const id = String(v || ''); if (!id) return null; if (!MAP_PLACES.has(id)) throw bad('Choose a building from the list.'); return id; };
 const EMAIL = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
 
 // ---------- permissions ----------
@@ -902,7 +902,7 @@ route('PUT', '/api/settings', ({ u, body }) => {
 // ---------- HTTP server ----------
 const MIME = { '.webp': 'image/webp', '.woff2': 'font/woff2', '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.json': 'application/json' };
 const SECURITY_HEADERS = {
-  'Content-Security-Policy': "default-src 'self'; img-src 'self' data: https://tile.openstreetmap.org; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+  'Content-Security-Policy': "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'same-origin',
   'X-Frame-Options': 'DENY',
