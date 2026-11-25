@@ -1,0 +1,46 @@
+UZ EVENTS - FULL REVAMP IMPLEMENTATION PROMPT
+
+Act as a senior product designer and full-stack engineer. Improve the existing University of Zimbabwe events system into a polished, practical university product. Work in the existing repository. Read AGENTS.md, README.md and docs/PROJECT-OVERVIEW.md, then inspect the implementation before making changes. Treat the overview as a description to verify, not proof that every feature works.
+
+OBJECTIVE
+Make event discovery clear and fast for students and visitors, make staff workflows easier to complete, and strengthen reliability. Preserve working features and existing data. Deliver the actual implementation, appropriate tests, updated documentation and a concise handover. Do not stop at a mockup or plan.
+
+1. NON-NEGOTIABLE BEHAVIOUR
+Keep public navigation free of staff sign-in, workspace and administration links. Preserve the invitation-only /#/staff sign-in page without demo credentials or role hints. Unauthorised workspace URLs must display the same Page not found presentation as unknown routes. Enforce all role and department permissions on the server. A hidden route is not a security boundary: do not promise that client-side code or staff routes are undiscoverable.
+Keep drafts, internal events, review notes, author identifiers and other restricted fields out of public responses and exports. No self-approval, including welcome messages. Keep required review notes, public change reasons, session invalidation and audit records. Preserve the six existing acceptance tests and add focused coverage for changed behaviour.
+
+2. DESIGN DIRECTION
+Create a restrained, distinctive university editorial style. Use the existing approved-direction palette: navy #003366, deep navy #002244, orange #f79422, paper #f6f4ef and white. Preserve the official crest without distortion. Use Georgia for headings and system fonts for body copy; avoid remote font downloads. Keep flat surfaces, thin borders, nearly square corners and consistent spacing. Avoid gradients, glass effects, heavy shadows, generic oversized dashboard cards and decorative animation.
+Consolidate CSS tokens for colours, spacing, typography, widths and states. Establish a clear type hierarchy and consistent buttons, fields, tabs, badges, alerts and tables. Orange should provide emphasis; use a darker accessible colour for small text on light backgrounds. Keep category and status names visible alongside colours. Verify contrast rather than assuming the palette passes.
+
+3. PUBLIC HOME AND NAVIGATION
+Make search, today's events and the next useful action immediately visible. Reduce competing headings and repeated links. Keep a clear hierarchy: search, happening now/today, next seven days, featured upcoming event, faculty browsing. Show helpful empty states when nothing is scheduled. Handle countdown expiry so negative or stale values never appear. Give event rows consistent date, time, title, venue and status placement. Keep navigation and footer concise, keyboard accessible and usable on narrow screens.
+
+4. CALENDAR AND EVENT DISCOVERY
+Preserve Day, Week, Month, Year and List views. Make current period, selected view, active filters and result counts easy to understand. Persist view/filter state in shareable URLs where practical and ensure browser back/forward restores it. Provide a clear reset action and useful zero-results guidance. Ensure dense and overlapping events remain readable and selectable. Do not silently lose the selected date or filters when switching to a mobile list view. Test recurring events, midnight boundaries, multi-day events and cancelled/postponed events using Africa/Harare time semantics.
+
+5. EVENT DETAILS AND ARCHIVE
+Put date, time, venue, audience and contact information near the top. Keep Add to calendar, Copy link and Print predictable with success/failure feedback. Clearly distinguish confirmed, cancelled and postponed states; do not present old dates as confirmed after postponement. Keep public update history readable. Ensure print output and calendar exports reflect current event status. Make archive filters useful without confusing past events with upcoming results.
+
+6. STAFF WORKSPACE
+Give each role a focused home screen with tasks requiring action. Organisers should immediately see drafts, returned submissions and the relevant review notes; approvers should see pending decisions and clashes. Make counts consistent with the lists they open. On mobile, provide understandable workspace navigation without hiding key actions in a long unlabeled horizontal strip.
+Improve event forms with logical sections, clear required labels, inline errors and an error summary. Preserve entered values on failure. Prevent duplicate submissions. Warn before abandoning unsaved changes. Label clash checks as checking, clear, conflict or unavailable; never imply a venue is free when a request fails. Show recurring conflicts clearly and preserve the existing warning policy unless explicitly changed. Keep preview content consistent with saved content.
+Make approval cards scannable with submitter, department, visibility, schedule, clash information and decision note. Require notes before return/reject. Make reschedule, postpone, cancel and reinstate flows explicit about their public effect. Confirm consequential actions and show a clear completion result. Preserve permission enforcement even if requests bypass the UI.
+
+7. WELCOME DISPLAYS
+Optimise legibility at reception-screen distance. Test long guest names, long organisations and maximum-length messages without clipping. Preserve rotation, full-screen controls, reduced-motion support and the live clock. Enforce expiry locally as well as on refresh: cached welcome messages must not remain visible indefinitely during a network outage. Fall back to a neutral university welcome when content expires. Include unobtrusive connection feedback and graceful recovery.
+
+8. ADMINISTRATION AND RELIABILITY
+Clarify role descriptions, user status and department scope. Preserve safeguards against self-deactivation or unsafe role changes. Ensure resets and deactivation revoke sessions. Keep audit records useful without exposing passwords, session tokens or unnecessary personal data.
+Make backup/restore consequences explicit. Validate imports before changing data, retain the pre-restore safety backup and report failures honestly. Test invalid, interrupted and successful restore scenarios in isolated test storage. Never test destructive flows against the user's live data.
+Inspect validation, error handling, access control, public field filtering, cookies, sign-in throttling and security headers. Fix demonstrated issues. Keep the lightweight Node architecture unless a specific requirement justifies a dependency; explain tradeoffs before introducing major infrastructure changes.
+
+9. RESPONSIVENESS, ACCESSIBILITY AND PERFORMANCE
+Test at 360, 390, 768, 1024 and 1440 CSS pixels. Check zoom, keyboard-only navigation, visible focus, skip links, modal focus handling, semantic headings, form labels, announced errors and reduced motion. Make controls comfortable to tap. Avoid page-wide horizontal scrolling. Keep essential event details readable on small screens and slow connections. Add honest loading, empty, failure and retry states. Check images, cache behaviour and unnecessary requests. Report emulated viewport testing separately from real-device testing; never claim a real phone was tested unless it was.
+
+10. LAUNCH WORK AND SCOPE
+Separate prototype improvements from production integration. Document university SSO, HTTPS/secure cookies, PostgreSQL migration, hosting, retention/recovery targets, validated departments/venues, branding approval and user acceptance testing as open until verified. Do not invent institutional endpoints, credentials or approvals. Do not deploy, send emails or replace demo data without the needed configuration and authorisation. Keep demo account details out of public-facing documentation and public UI.
+
+DELIVERY AND ACCEPTANCE
+First inspect the code and identify concrete issues. Implement in manageable stages: permissions and reliability, navigation and visual consistency, key user journeys, responsive/accessibility polish, then documentation. Preserve existing local changes. Run the original acceptance suite and targeted tests for new logic. Verify anonymous, organiser, departmental approver, central approver and administrator flows with appropriate fixtures. Inspect public home, all calendar views, event details, archive, sign-in, submission, review, administration and welcome displays in a browser.
+Finish with changed files, verified behaviours, test results, screenshots where available and remaining blockers. Update the overview to reflect what actually exists. Do not describe proposed work as completed. Do not commit or deploy unless requested.
