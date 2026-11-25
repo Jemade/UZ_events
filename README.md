@@ -38,7 +38,7 @@ A new installation starts with UZ's departments, venues (pinned to their campus 
 
 ## Calendar and directions
 
-After signing in, the calendar is the whole page: no search box or filters, and it fits the screen. Clicking an event opens its details in a window over the calendar, with **Getting there**: the venue and an **Open directions in Google Maps** button. The link gives Google Maps the venue's building as the destination and no starting point, so Google Maps starts from wherever the person is (with their permission) and gives turn-by-turn directions.
+After signing in, the calendar is the whole page: no search box or filters, and it fits the screen. Clicking an event opens its details in a window over the calendar, with a map-pin icon beside the venue that opens directions in Google Maps. The link gives Google Maps the venue's building as the destination and no starting point, so Google Maps starts from wherever the person is (with their permission) and gives turn-by-turn directions.
 
 Building positions come from OpenStreetMap (`public/assets/campus-places.json`, © OpenStreetMap contributors, ODbL), built by `tools/build-campus-map.mjs`. Administrators choose each venue's building under **Workspace → Venues**. Venues with no building chosen (Innovation Hub, Parirenyatwa Lecture Hall) open a Google Maps search for the venue's name instead.
 

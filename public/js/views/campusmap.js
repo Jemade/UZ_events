@@ -1,7 +1,7 @@
-// Getting there: Google Maps directions to an event's venue.
+// Directions to an event's venue: a map-pin icon that opens Google Maps.
 // Venues are pinned to a named campus building (public/assets/campus-places.json, positions from OpenStreetMap).
 // The link gives no starting point, so Google Maps starts from wherever the person is.
-import { html } from '../util.js';
+import { html, raw } from '../util.js';
 
 let places = null;
 export async function loadMap() {
@@ -9,19 +9,19 @@ export async function loadMap() {
   return places;
 }
 
-// "Great Hall" and "The Great Hall" are the same place; "Senate Chamber" in "Main Administration" is not.
-const bare = n => n.toLowerCase().replace(/^(the|uz)\s+/, '').trim();
-const sameName = (a, b) => bare(a).includes(bare(b)) || bare(b).includes(bare(a));
+const PIN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>';
+const search = name => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${name}, University of Zimbabwe, Harare`)}`;
 
-export async function venueMap(el, { placeId, venueName, venueLocation }) {
+// The icon starts as a search for the venue's name, and becomes exact directions once the building is known.
+export const mapIcon = e => html`<a class="map-icon" data-place="${e.venuePlace || ''}" href="${search(e.venueName)}" target="_blank" rel="noopener"
+  aria-label="Directions to ${e.venueName} in Google Maps" title="Directions in Google Maps">${raw(PIN)}</a>`;
+
+export async function wireMapIcons(root) {
+  const links = [...root.querySelectorAll('.map-icon[data-place]')].filter(a => a.dataset.place);
+  if (!links.length) return;
   const m = await loadMap();
-  const place = placeId && m.places.find(p => p.id === placeId);
-  const href = place
-    ? `https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lon}&travelmode=walking`
-    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${venueName}, University of Zimbabwe, Harare`)}`;
-  el.innerHTML = String(html`<div class="directions">
-    <p><b>${venueName}</b>${place && !sameName(place.name, venueName) ? html` in ${place.name}` : ''}${venueLocation ? html`<br><span class="muted small">${venueLocation}, University of Zimbabwe</span>` : ''}</p>
-    <a class="btn" href="${href}" target="_blank" rel="noopener">Open directions in Google Maps</a>
-    <p class="small muted">${place ? 'Google Maps starts from where you are and shows the way.' : 'This venue is not pinned to a building yet, so Google Maps searches for it by name.'}</p>
-  </div>`);
+  for (const a of links) {
+    const p = m.places.find(x => x.id === a.dataset.place);
+    if (p) a.href = `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}&travelmode=walking`;
+  }
 }

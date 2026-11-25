@@ -184,7 +184,7 @@ legend { font: 400 19px var(--serif); color: var(--navy-2); padding-right: 12px;
 .agenda-date .d { font: 400 38px/1 var(--serif); color: var(--navy-2); margin: 4px 0 2px; }
 .agenda-date .m { font-size: 13px; color: var(--muted); }
 .agenda-date.today .d { color: var(--orange-ink); }
-.ev-row { display: grid; grid-template-columns: 110px 1fr auto; gap: 18px; padding: 16px 20px; border-bottom: 1px solid var(--line-2); text-decoration: none; color: inherit; align-items: start; border-left: 3px solid var(--cat, transparent); }
+.ev-row { display: grid; grid-template-columns: 110px 1fr auto; gap: 18px; padding: 16px 20px; border-bottom: 1px solid var(--line-2); text-decoration: none; color: inherit; align-items: start; }
 .ev-row:last-child { border-bottom: 0; }
 .ev-row:hover { background: #fafbfc; }
 .ev-row:hover .t { color: var(--orange-ink); text-decoration: underline; }
@@ -255,7 +255,7 @@ legend { font: 400 19px var(--serif); color: var(--navy-2); padding-right: 12px;
 .month .num { display: inline-grid; place-items: center; min-width: 28px; height: 28px; font-size: 13.5px; font-weight: 600; color: var(--ink-2); text-decoration: none; border-radius: 50%; }
 .month .num:hover { background: var(--navy-tint); }
 .month .cell.today .num { background: var(--navy); color: #fff; }
-.month .item { display: block; font-size: 12.5px; line-height: 1.3; padding: 3px 6px 3px 7px; margin-top: 3px; border-left: 3px solid var(--cat); background: #f3f5f8; color: var(--ink); text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.month .item { display: block; font-size: 12.5px; line-height: 1.3; padding: 3px 6px 3px 7px; margin-top: 3px; background: #f3f5f8; color: var(--ink); text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .month .item:hover { background: var(--navy); color: #fff; }
 .month .item b { font-weight: 700; margin-right: 4px; }
 .month .item.is-cancelled { text-decoration: line-through; color: var(--muted); }
@@ -271,7 +271,7 @@ legend { font: 400 19px var(--serif); color: var(--navy-2); padding-right: 12px;
 .week .gutter { display: grid; grid-template-rows: repeat(15, 1fr); }
 .week .gutter div { font-size: 11.5px; color: var(--muted); text-align: right; padding-right: 8px; transform: translateY(-7px); }
 .week .col { position: relative; border-left: 1px solid var(--line-2); background-image: linear-gradient(var(--line-2) 1px, transparent 1px); background-size: 100% calc(100% / 15); }
-.week .blk { position: absolute; left: 4px; right: 4px; background: #eef2f7; border-left: 3px solid var(--cat); padding: 4px 6px; font-size: 12px; line-height: 1.25; overflow: hidden; text-decoration: none; color: var(--ink); }
+.week .blk { position: absolute; left: 4px; right: 4px; background: #eef2f7; padding: 4px 6px; font-size: 12px; line-height: 1.25; overflow: hidden; text-decoration: none; color: var(--ink); }
 .week .blk:hover { background: var(--navy); color: #fff; z-index: 2; }
 .week .blk b { display: block; font-weight: 600; }
 .week .blk.is-cancelled { opacity: .6; text-decoration: line-through; }
@@ -391,7 +391,7 @@ table.t .acts { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: w
 .tabs a.on { color: var(--navy); border-bottom-color: var(--orange); }
 .tabs a span { color: var(--muted); font-weight: 500; margin-left: 4px; }
 
-.review-card { background: var(--white); border: 1px solid var(--line); border-left: 4px solid var(--cat, var(--navy)); margin-bottom: 16px; display: grid; grid-template-columns: 1fr 320px; }
+.review-card { background: var(--white); border: 1px solid var(--line); margin-bottom: 16px; display: grid; grid-template-columns: 1fr 320px; }
 .review-card .info { padding: 20px 22px; }
 .review-card .info h3 { font-size: 21px; margin: 6px 0 8px; }
 .review-card .decide { padding: 20px 22px; border-left: 1px solid var(--line-2); background: #fbfcfd; }
@@ -526,9 +526,8 @@ dialog .form-actions { justify-content: flex-end; }
 #app > * { animation: page .24s var(--ease) both; }
 @keyframes page { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .recent { animation: recent 2.6s ease-out; }
-@keyframes recent { 0%, 35% { background-color: var(--orange-tint); box-shadow: inset 3px 0 0 var(--orange); } 100% { background-color: transparent; } }
+@keyframes recent { 0%, 35% { background-color: var(--orange-tint); } 100% { background-color: transparent; } }
 .ev-row, .today-item, .chip, .btn, .tile, .side a, .tabs a, .month .item, .week .blk, .screen-card, .dept-grid a, table.t tr td { transition: background-color .15s var(--ease), color .15s var(--ease), border-color .15s var(--ease), transform .15s var(--ease); }
-.ev-row:hover { transform: translateX(2px); }
 .screen-card:hover { transform: translateY(-2px); }
 .btn:active { transform: translateY(1px); }
 
@@ -805,8 +804,6 @@ dialog.ev-dialog { width: min(640px, 96vw); max-height: 92vh; border-top-color: 
   .evd-grid { grid-template-columns: 1fr; }
 }
 
-.getting-there { margin-top: 28px; }
-.getting-there h2 { font-size: var(--fs-h3); margin-bottom: 12px; }
 .cal-only { margin: 0 0 8px; color: var(--muted); }
 
 /* ---------- busy spinner on whatever was pressed ---------- */
@@ -897,8 +894,13 @@ form.stepped > fieldset > legend { font-size: 16px; }
   form.stepped .photo-field small, form.stepped .check .small { display: none; }
 }
 
-/* Getting there: Google Maps directions */
-.directions { border: 1px solid var(--line); border-left: 4px solid var(--orange); background: var(--white); padding: 14px 16px; }
-.directions p { margin: 0 0 10px; }
-.directions .small { margin: 10px 0 0; }
-.evd-there { border-top: 1px solid var(--line); padding-top: 14px; }
+
+/* Category shown as a small dot on calendar items (no coloured bar down the left) */
+.month .item::before, .week .blk b::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--cat); margin-right: 5px; vertical-align: 1px; }
+@media (max-width: 700px) { .month .item::before { display: none; } }
+
+/* Directions: a map-pin icon beside the venue */
+.map-icon { display: inline-grid; place-items: center; width: 34px; height: 34px; margin-left: 8px; vertical-align: middle; border-radius: 50%; background: var(--navy); color: #fff; text-decoration: none; flex: none; }
+.map-icon:hover, .map-icon:focus-visible { background: var(--orange); color: var(--navy-2); }
+.map-icon svg { width: 18px; height: 18px; }
+.venue-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; }

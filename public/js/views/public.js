@@ -1,7 +1,7 @@
 import { html, raw, api, D, icon, toast, tag, qs, empty, fitForm } from '../util.js';
 import { ico, categoryArt } from '../art.js';
 import { state, go, today, render, refreshMe, can } from '../app.js';
-import { venueMap } from './campusmap.js';
+import { mapIcon, wireMapIcons } from './campusmap.js';
 
 const put = (el, tpl) => { el.innerHTML = String(tpl); };
 const evHref = e => `#/event/${e.id}${e.occurrence ? '?on=' + encodeURIComponent(e.start) : ''}`;
@@ -74,7 +74,6 @@ export async function eventDetail({ el, params, query }) {
       <figure class="cover">${photo(e)}</figure>
       ${e.summary ? html`<p class="lede">${e.summary}</p>` : ''}
       <div class="body">${(e.description || '').split(/\n{2,}/).map(p => html`<p>${p}</p>`)}</div>
-      <section class="getting-there"><h2>Getting there</h2><div id="map"></div></section>
       ${notes.length ? html`<hr class="rule"><h2 style="margin-bottom:16px;font-size:var(--fs-h3)">Updates</h2>
         <ul class="timeline">${notes.slice().reverse().map(h => html`<li><span class="when">${D.stamp(h.at)}</span><br><b>${ACTION_TEXT[h.action] || h.action}</b>${h.note ? html`: ${h.note}` : ''}</li>`)}</ul>` : ''}
       ${staff && e.createdByName ? html`<hr class="rule"><h2 style="margin-bottom:6px;font-size:var(--fs-h3)">Record</h2>
@@ -88,7 +87,7 @@ export async function eventDetail({ el, params, query }) {
       </div>
       <dl>
         ${e.recurrence && e.recurrence.freq !== 'none' ? html`${dt('repeat', 'Repeats')}<dd>Every ${e.recurrence.freq === 'weekly' ? 'week' : 'month'} until ${D.long(e.recurrence.until)}</dd>` : ''}
-        ${dt('pin', 'Venue')}<dd>${e.venueName}<br><span class="small muted">${e.venueLocation}</span></dd>
+        ${dt('pin', 'Venue')}<dd><span class="venue-line"><span>${e.venueName}<br><span class="small muted">${e.venueLocation}</span></span>${mapIcon(e)}</span></dd>
         ${dt('admin', 'Organiser')}<dd>${e.departmentName}</dd>
         ${dt('users', 'Audience')}<dd>${e.audience}</dd>
         ${dt('mail', 'Contact')}<dd>${e.contactName}<br><a href="mailto:${e.contactEmail}">${e.contactEmail}</a></dd>
@@ -107,7 +106,7 @@ export async function eventDetail({ el, params, query }) {
     try { await navigator.clipboard.writeText(location.href); toast('Link copied to your clipboard.'); } catch { toast('Copy failed. Use the address bar instead.', true); }
   };
   el.querySelector('#print').onclick = () => window.print();
-  venueMap(el.querySelector('#map'), { placeId: e.venuePlace, venueName: e.venueName, venueLocation: e.venueLocation }).catch(() => {});
+  wireMapIcons(el).catch(() => {});
   const save = el.querySelector('#save');
   if (save) save.onclick = async () => {
     try {
@@ -148,7 +147,7 @@ export async function eventDialog(id, on) {
       <div>
         <dl class="evd-facts">
           <dt>When</dt><dd><b>${D.long(start.slice(0, 10))}</b><br>${D.time(start)} – ${D.time(end)}${start.slice(0, 10) !== end.slice(0, 10) ? ` (${D.short(end)})` : ''}</dd>
-          <dt>Where</dt><dd><b>${e.venueName}</b>${e.venueLocation ? html`<br><span class="muted small">${e.venueLocation}</span>` : ''}</dd>
+          <dt>Where</dt><dd><span class="venue-line"><span><b>${e.venueName}</b>${e.venueLocation ? html`<br><span class="muted small">${e.venueLocation}</span>` : ''}</span>${mapIcon(e)}</span></dd>
           <dt>Who</dt><dd>${e.audience}</dd>
           <dt>Contact</dt><dd>${e.contactName}<br><a href="mailto:${e.contactEmail}">${e.contactEmail}</a></dd>
         </dl>
@@ -161,7 +160,6 @@ export async function eventDialog(id, on) {
           ${e.canEdit ? html`<a class="btn plain sm" href="#/work/events/${e.id}/edit">Edit event</a>` : ''}
         </div>
       </div>
-      <section class="evd-there" aria-label="Getting there"><h3 class="evd-sub">Getting there</h3><div id="evdMap"></div></section>
     </div>
   </div>`);
   document.body.appendChild(dlg);
@@ -184,8 +182,7 @@ export async function eventDialog(id, on) {
   };
   dlg.showModal();
   dlg.querySelector('.evd-close').focus();
-  venueMap(dlg.querySelector('#evdMap'), { placeId: e.venuePlace, venueName: e.venueName, venueLocation: e.venueLocation })
-    .catch(() => {});
+  wireMapIcons(dlg).catch(() => {});
 }
 
 // ---------------- ARCHIVE ----------------
