@@ -21,12 +21,9 @@ test('a new live installation starts empty with one administrator and the bundle
   assert.equal(meta.departments.length, 12);
   assert.match(meta.settings.heroImage, /^\/uploads\/[a-f0-9]{32}\.jpg$/);
   assert.match(meta.settings.heroCaption, /Star FM/);
-  assert.match(meta.settings.loginImage, /^\/uploads\/[a-f0-9]{32}\.jpg$/);
   assert.equal(meta.settings.publicUrl, 'https://uz-events.onrender.com', 'QR codes use the Render address');
   assert.equal((await fetch(base + meta.settings.heroImage)).status, 200);
-  const pagePhotos = ['hero', 'login', 'staffLogin', 'signup', 'me', 'archive', 'work'].map(k => meta.settings[k + 'Image']);
-  assert.ok(pagePhotos.every(Boolean), 'every page has a photo');
-  assert.equal(new Set(pagePhotos).size, pagePhotos.length, 'no two pages share a photo');
+  assert.deepEqual(Object.keys(meta.settings).filter(k => k.endsWith('Image')), ['heroImage'], 'only the home page has a site photo');
   assert.equal((await fetch(base + '/api/events')).status, 401, 'events need an account');
   // the sample accounts do not exist here
   assert.equal((await post('/api/login', { email: 'admin@uz.ac.zw', password: 'UZevents2026' })).status, 401);

@@ -23,9 +23,10 @@ const SECURE_COOKIES = config.secureCookies;
 const store = new Store(path.join(DATA_DIR, 'db.json'));
 let freshInstall = false;
 let db = store.load(() => { freshInstall = true; return config.seedMode === 'empty' ? seedEmpty(config) : seed(); });
-// One photo per page. Manifest key in seed-photos/photos.json -> settings prefix (<prefix>Image, <prefix>Alt).
-const PAGE_PHOTOS = { home: 'hero', signIn: 'login', staffSignIn: 'staffLogin', signUp: 'signup', myEvents: 'me', archive: 'archive', workspace: 'work' };
-const PAGE_PHOTO_LABELS = { hero: 'Home page photo', login: 'Student sign-in photo', staffLogin: 'Staff sign-in photo', signup: 'Create account photo', me: 'My events photo', archive: 'Archive photo', work: 'Workspace photo' };
+// Site photos: only where a photo belongs (the home page). Events carry their own cover photos.
+// Manifest key in seed-photos/photos.json -> settings prefix (<prefix>Image, <prefix>Alt).
+const PAGE_PHOTOS = { home: 'hero' };
+const PAGE_PHOTO_LABELS = { hero: 'Home page photo' };
 const DEFAULT_SETTINGS = { heroCaption: '', publicUrl: '', ...Object.fromEntries(Object.values(PAGE_PHOTOS).flatMap(k => [[k + 'Image', null], [k + 'Alt', '']])) };
 // Page photos an existing installation has never had (added in a later version); they are filled from seed-photos below.
 const missingPhotos = Object.keys(PAGE_PHOTOS).filter(k => !(PAGE_PHOTOS[k] + 'Image' in (db.settings || {})));

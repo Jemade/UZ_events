@@ -5,12 +5,6 @@ import { state, go, today, render, refreshMe, can } from '../app.js';
 const put = (el, tpl) => { el.innerHTML = String(tpl); };
 const evHref = e => `#/event/${e.id}${e.occurrence ? '?on=' + encodeURIComponent(e.start) : ''}`;
 
-// The page's own campus photo (each page has a different one; admins change them under Site photos).
-export const pagePhoto = prefix => {
-  const st = state.meta.settings || {};
-  return st[prefix + 'Image'] ? html`<figure class="page-photo"><img src="${st[prefix + 'Image']}" alt="${st[prefix + 'Alt'] || 'University of Zimbabwe campus'}" decoding="async"></figure>` : '';
-};
-
 // Event photo, or the category artwork when no photo has been supplied
 export const photo = (e, cls = '') => e.coverImage
   ? html`<img class="${cls}" src="${e.coverImage}" alt="${e.coverAlt || ''}" loading="lazy" decoding="async">`
@@ -226,13 +220,12 @@ export async function archive({ el, query }) {
   past.forEach(e => { const k = e.start.slice(0, 7); if (!byMonth.has(k)) byMonth.set(k, []); byMonth.get(k).push(e); });
   const thisYear = Number(t.slice(0, 4));
   put(el, html`
-  <div class="page-head ${pagePhoto('archive') ? 'has-photo' : ''}"><div class="wrap">
+  <div class="page-head"><div class="wrap">
     <div>
       <div class="crumbs"><a href="#/">What’s on</a> / Archive</div>
       <h1>Events archive</h1>
       <p class="muted" style="margin-top:8px">A permanent record of completed university events, including recurring series.</p>
     </div>
-    ${pagePhoto('archive')}
   </div></div>
   <div class="wrap" style="padding-top:22px">
     <form class="cal-filters" id="f">
@@ -258,20 +251,8 @@ export async function archive({ el, query }) {
 export const homeFor = me => (me && ['organiser', 'approver', 'admin'].includes(me.role) ? '/work' : '/me');
 const STUDENT_DOMAIN = 'students.uz.ac.zw';
 
-function authShell(el, st, prefix, left, rightTitle, rightText) {
-  const img = st[prefix + 'Image'] || st.loginImage;
-  const alt = st[prefix + 'Image'] ? st[prefix + 'Alt'] : st.loginAlt;
-  put(el, html`<div class="login">
-    <div class="pane left">${left}</div>
-    <div class="right">
-      <div class="ph">${img ? html`<img src="${img}" alt="${alt || 'University of Zimbabwe campus'}">` : campusArt()}</div>
-      <div class="txt">
-        <div class="eyebrow">UZ Events</div>
-        <h2 style="margin:8px 0 8px">${rightTitle}</h2>
-        <p class="muted" style="max-width:440px;margin:0">${rightText}</p>
-      </div>
-    </div>
-  </div>`);
+function authShell(el, left) {
+  put(el, html`<div class="login solo"><div class="pane">${left}</div></div>`);
 }
 const whoTabs = (base, as, extra = '') => html`<nav class="tabs" aria-label="Account type">
   <a href="#${base}?as=student${extra}" class="${as === 'student' ? 'on' : ''}" ${as === 'student' ? raw('aria-current="page"') : ''}>Student</a>
@@ -281,9 +262,8 @@ const whoTabs = (base, as, extra = '') => html`<nav class="tabs" aria-label="Acc
 export async function login({ el, query, path }) {
   if (state.me) { go('#' + homeFor(state.me)); return; }
   const as = query.as === 'staff' || (path === '/staff' && query.as !== 'student') ? 'staff' : 'student';
-  const st = state.meta.settings || {};
   const student = as === 'student';
-  authShell(el, st, student ? 'login' : 'staffLogin', html`
+  authShell(el, html`
       <img src="/assets/uz-crest.png" alt="University of Zimbabwe crest" width="82" height="84">
       <h1>Sign in</h1>
       <p class="muted" style="margin-bottom:18px">${student ? 'Students sign in with their registration number.' : 'Staff sign in with the email address they registered with.'}</p>
@@ -297,10 +277,7 @@ export async function login({ el, query, path }) {
         <label class="field"><span>Password</span><input class="input" type="password" name="password" autocomplete="current-password" required></label>
         <button class="btn" style="width:100%;height:48px">Sign in</button>
       </form>
-      <p class="small" style="margin-top:18px">No account yet? <a href="#/signup?as=${as}">Create ${student ? 'a student' : 'a staff'} account</a></p>`,
-    student ? 'Your events, in one place' : 'Staff access',
-    student ? 'Save the events you want to attend and see what your faculty has coming up.'
-      : 'Organisers submit events, approvers review them, and administrators manage the system. New staff accounts wait for an administrator to give them a role.');
+      <p class="small" style="margin-top:18px">No account yet? <a href="#/signup?as=${as}">Create ${student ? 'a student' : 'a staff'} account</a></p>`);
   const form = el.querySelector('#lf');
   form.login.focus();
   form.onsubmit = async ev => {
@@ -325,9 +302,8 @@ export async function signup({ el, query }) {
   if (state.me) { go('#' + homeFor(state.me)); return; }
   const as = query.as === 'staff' ? 'staff' : 'student';
   const student = as === 'student';
-  const st = state.meta.settings || {};
   const depts = state.meta.departments.filter(d => student ? !['reg', 'vc'].includes(d.id) : true);
-  authShell(el, st, 'signup', html`
+  authShell(el, html`
       <img src="/assets/uz-crest.png" alt="University of Zimbabwe crest" width="82" height="84">
       <h1>Create an account</h1>
       <p class="muted" style="margin-bottom:18px">${student ? 'Use your registration number and your student email.' : 'Use your own email address for now. An administrator gives staff their role.'}</p>
@@ -344,10 +320,7 @@ export async function signup({ el, query }) {
         <label class="field"><span>Confirm password</span><input class="input" type="password" name="confirm" minlength="10" autocomplete="new-password" required></label>
         <button class="btn" style="width:100%;height:48px">Create account</button>
       </form>
-      <p class="small" style="margin-top:18px">Already have an account? <a href="#/login?as=${as}">Sign in</a></p>`,
-    student ? 'For UZ students' : 'For UZ staff',
-    student ? `We check that your student email matches your registration number, for example R2420211 and r2420211@${STUDENT_DOMAIN}.`
-      : 'After you create your account, the administrator gives you a role: organiser, approver or administrator. Until then you can save events.');
+      <p class="small" style="margin-top:18px">Already have an account? <a href="#/login?as=${as}">Sign in</a></p>`);
   const form = el.querySelector('#sf');
   const err = el.querySelector('#err');
   const fail = msg => { err.innerHTML = String(html`<div class="error" role="alert">${msg}</div>`); err.scrollIntoView({ block: 'nearest' }); };
@@ -393,13 +366,12 @@ export async function myEvents({ el }) {
   const waiting = me.role === 'staff';
   document.title = 'My events · UZ Events';
   put(el, html`
-  <div class="page-head ${pagePhoto('me') ? 'has-photo' : ''}"><div class="wrap">
+  <div class="page-head"><div class="wrap">
     <div>
       <div class="eyebrow">${waiting ? 'Staff' : 'Student'}${me.regNumber ? ` · ${me.regNumber}` : ''}</div>
       <h1 style="margin-top:8px">Welcome, ${me.name.split(' ')[0]}</h1>
       <p class="muted" style="margin:6px 0 0">${dept ? dept.name : ''}</p>
     </div>
-    ${pagePhoto('me')}
   </div></div>
   <div class="wrap" style="padding-top:28px;padding-bottom:56px">
     ${waiting ? html`<div class="banner info" role="status"><b>Your account is waiting for a role.</b><p>An administrator will make you an organiser, approver or administrator. Once they have, reload this page and your workspace opens. Until then you can browse and save events.</p></div>` : ''}

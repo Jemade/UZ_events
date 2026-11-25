@@ -22,7 +22,7 @@ Built by Jayden Mapasure and Nyasha Madoro.
 
 The student email check confirms that the email and the registration number belong together. It does not yet send a code to the inbox, because email delivery is not connected (see the outbox under Workspace).
 
-A new installation starts with UZ's departments, venues and lobby screens, the home and sign-in photos from `seed-photos/`, and one administrator. Staff and students then create their own accounts, and the administrator gives staff their roles under **Workspace → Users and roles** (or adds staff directly there).
+A new installation starts with UZ's departments, venues and lobby screens, the home page photo from `seed-photos/`, and one administrator. Staff and students then create their own accounts, and the administrator gives staff their roles under **Workspace → Users and roles** (or adds staff directly there).
 
 **Render's free plan has no permanent disk.** Every restart, redeploy, or sleep after 15 idle minutes starts the site afresh from the state above, and everything created is lost. For continued use, move to a paid instance, add a persistent disk mounted at `/var/data`, and set `DATA_DIR=/var/data`. Until then, use **Workspace → Backups → Download** to keep a copy.
 

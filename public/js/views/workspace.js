@@ -183,9 +183,7 @@ export async function overview({ el, path }) {
         </div>
       </div></section>`;
   }
-  const st = state.meta.settings || {};
-  const banner = st.workImage ? html`<figure class="work-photo"><img src="${st.workImage}" alt="${st.workAlt || 'University of Zimbabwe campus'}" decoding="async"></figure>` : '';
-  const main = await layout(el, path, html`${banner}${head(`${greet}, ${me.name.split(' ').filter(w => !/^(Dr|Prof)$/.test(w))[0]}`, `${me.role[0].toUpperCase() + me.role.slice(1)} · ${deptName(me.department)}`, html`<a class="btn" href="#/work/events/new">${icon.plus} Submit an event</a>`)}${body}
+  const main = await layout(el, path, html`${head(`${greet}, ${me.name.split(' ').filter(w => !/^(Dr|Prof)$/.test(w))[0]}`, `${me.role[0].toUpperCase() + me.role.slice(1)} · ${deptName(me.department)}`, html`<a class="btn" href="#/work/events/new">${icon.plus} Submit an event</a>`)}${body}
     <section class="panel" aria-labelledby="updates-title"><header><h2 id="updates-title">Your updates</h2><span>${updates.unread} unread</span></header>
       <div class="pad">${updates.updates.length ? html`<ul class="updates-list">${updates.updates.map(n => html`<li>${!n.readAt ? html`<strong>New · </strong>` : ''}<a href="${n.href}">${n.message}</a><br><small class="muted">${D.stamp(n.at)}</small></li>`)}</ul>
       ${updates.updates.some(n => !n.readAt) ? html`<button class="btn ghost sm" id="readUpdates">Mark these updates as read</button>` : ''}` : html`<p class="muted">Decisions about your events and welcome messages will appear here.</p>`}</div>
@@ -752,18 +750,12 @@ export async function backups({ el, path }) {
 // ---------------- SITE PHOTOS (admin) ----------------
 export async function sitePhotos({ el, path }) {
   const st = state.meta.settings || {};
-  // Every page has its own photo. Use only photography the university has the right to publish.
+  // The home page photo. Events carry their own cover photos. Use only photography the university has the right to publish.
   const PAGES = [
     ['hero', 'Home page', 'Beside the headline on What’s on. Landscape, at least 1600px wide.'],
-    ['login', 'Sign in: student tab', 'Right-hand side of the sign-in page.'],
-    ['staffLogin', 'Sign in: staff tab', 'Right-hand side of the sign-in page when Staff is chosen.'],
-    ['signup', 'Create account', 'Right-hand side of the create account page.'],
-    ['me', 'My events', 'Top of the students’ My events page.'],
-    ['archive', 'Events archive', 'Top of the archive page.'],
-    ['work', 'Staff workspace', 'Banner across the top of the workspace overview.'],
   ];
   const main = await layout(el, path, html`
-    ${head('Site photos and address', 'Each page has its own campus photo. Use only approved UZ photography that the university has the right to publish.')}
+    ${head('Site photos and address', 'The home page photo. Events have their own cover photos. Use only approved UZ photography that the university has the right to publish.')}
     <form id="sf">
       <div class="settings-grid">
         ${PAGES.map(([k, title, help]) => html`<section class="panel"><header><h2>${title}</h2></header><div class="pad">
@@ -784,7 +776,7 @@ export async function sitePhotos({ el, path }) {
       await api('/api/settings', { method: 'PUT', body: Object.fromEntries(new FormData(ev.target)) });
       const { refreshMeta } = await import('../app.js');
       await refreshMeta();
-      toast('Saved. Each page now uses its photo.');
+      toast('Saved.');
       rerender();
     } catch (err) { toast(err.message, true); }
   };

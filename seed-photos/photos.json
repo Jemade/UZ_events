@@ -3,29 +3,5 @@
     "file": "home-sign-wall.jpg",
     "alt": "Red-brick wall with the University of Zimbabwe crest and the words University of Zimbabwe in white letters",
     "caption": "University of Zimbabwe, Mount Pleasant · Photo: Star FM Zimbabwe"
-  },
-  "signIn": {
-    "file": "sign-in-main-library.jpg",
-    "alt": "The University of Zimbabwe Main Library seen from above"
-  },
-  "staffSignIn": {
-    "file": "staff-sign-in-teaching-blocks.jpg",
-    "alt": "Long green-roofed teaching blocks and lawns on the University of Zimbabwe campus, seen from above"
-  },
-  "signUp": {
-    "file": "create-account-great-hall.jpg",
-    "alt": "Students walking past the entrance of the Great Hall at the University of Zimbabwe"
-  },
-  "myEvents": {
-    "file": "my-events-green-roof-hall.jpg",
-    "alt": "A green-roofed hall with brick walkways and lawns on the University of Zimbabwe campus, seen from above"
-  },
-  "archive": {
-    "file": "archive-great-hall-aerial.jpg",
-    "alt": "The red roof of the Great Hall at the University of Zimbabwe, seen from above"
-  },
-  "workspace": {
-    "file": "workspace-campus-aerial.jpg",
-    "alt": "The University of Zimbabwe campus in Mount Pleasant, seen from above"
   }
 }

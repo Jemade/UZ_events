@@ -382,7 +382,7 @@ Innovation Hub project/
 All nine design improvements are now built.
 
 1. **Photography**
-   - Admins upload the home-page photo, the staff sign-in photo and the public web address in **Administration → Site photos**.
+   - Admins upload the home-page photo and set the public web address in **Administration → Site photos**.
    - Organisers can attach a **cover photo** (with a description for screen readers) to any event.
    - Protocol can attach a **guest photo** to a welcome message.
    - Photos are shrunk in the browser (longest side 1600px, JPEG) before upload. The server only accepts real JPEG/PNG/WebP files up to 3 MB.
@@ -446,13 +446,12 @@ Photos now come from the University's own public gallery at uz.ac.zw/index.php/g
 | Where | Gallery file |
 |---|---|
 | Home page | The red-brick "University of Zimbabwe" sign wall with the crest. **Not a UZ photo:** it is from a Star FM Zimbabwe Facebook post (Feb 2025), shrunk from Google's preview. Caption credits "Photo: Star FM Zimbabwe" |
-| Staff sign-in | UZ Main Library.png |
 | Graduation Ceremony, Graduation Rehearsal | UZ Great Hall_2.png (entrance) |
 | Careers Fair (Great Hall) | UZ Great Hall.png |
 | Faculty of Science Research Day (Main Library Auditorium) | UZ Main Library.png |
 | Inter-faculty Athletics (Sports Pavilion) | Sports Fields Overview.png |
 
-Photos were only matched to events held in the building shown. Other events keep their category illustration.
+Photos were only matched to events held in the building shown. Other events keep their category illustration. The sign-in, create account, My events, archive and workspace pages have no photo.
 
 Changing only an event's photo or photo description is now an internal edit. It no longer appears in the public "Updates" list, and the organiser is told the event was "given a new photo".
 

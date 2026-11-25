@@ -187,7 +187,7 @@ test('photo backups restore missing files and reject unsafe or incomplete bundle
   assert.equal(exported.version, 2);
   // pick a photo the data actually uses, so removing it from the bundle must be refused
   const d = exported.data;
-  const used = [d.settings.heroImage, d.settings.loginImage, ...d.events.map(e => e.coverImage), ...d.messages.map(m => m.photo)].filter(Boolean).map(u => u.slice(9));
+  const used = [d.settings.heroImage, ...d.events.map(e => e.coverImage), ...d.messages.map(m => m.photo)].filter(Boolean).map(u => u.slice(9));
   const name = Object.keys(exported.uploads).find(n => used.includes(n));
   assert.ok(name, 'fixture has a photo in use');
   const encoded = exported.uploads[name];
