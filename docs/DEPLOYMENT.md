@@ -1,6 +1,21 @@
 # Server installation and recovery
 
-This is deployment preparation, not a record of a live deployment. UZ must supply approved hosting, a hostname, TLS, SSO integration details and production data before launch. The local password accounts and seed data are for demonstration only.
+Two ways to run UZ Events: on **Render** (quickest, described first), or on a **UZ server** behind a reverse proxy.
+
+## Render
+
+`render.yaml` describes the whole service. In Render choose **New → Blueprint**, pick the repository, and enter `ADMIN_EMAIL`, `ADMIN_NAME` and `ADMIN_PASSWORD` (10+ characters) for the first administrator. Render then sets the rest:
+- the port and address (`RENDER`, `PORT`);
+- the public `https` address used for QR codes and Secure cookies (`RENDER_EXTERNAL_URL`);
+- the visitor's real address for sign-in throttling (taken from Render's proxy).
+
+`SEED=empty` makes the first start create only departments, venues, screens, the bundled photos and the administrator.
+
+On the free plan the disk is temporary. Data resets to that starting state on every restart, redeploy, or sleep after 15 idle minutes, and the first visit after a sleep takes about a minute to wake the service. For lasting use, switch to a paid instance, attach a disk at `/var/data`, and set `DATA_DIR=/var/data`; nothing else changes.
+
+## UZ server
+
+UZ ICT provides the hosting, hostname, TLS and, later, single sign-on details. Each new installation needs `SEED=empty` and the three `ADMIN_` settings, as on Render.
 
 ## Configure
 

@@ -1,0 +1,27 @@
+# Render Blueprint for UZ Events.
+# Deploy: Render dashboard → New → Blueprint → choose this GitHub repository.
+# Render asks for the three values marked `sync: false` (the first administrator) before the first deploy.
+services:
+  - type: web
+    name: uz-events
+    runtime: node
+    plan: free
+    region: frankfurt
+    buildCommand: npm install --omit=dev
+    startCommand: npm start
+    healthCheckPath: /api/meta
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # A live installation starts with departments, venues, screens and one administrator; no sample events.
+      - key: SEED
+        value: empty
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_NAME
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      # Free plan: the disk is temporary, so data resets on every restart, redeploy or sleep.
+      # On a paid plan, add a persistent disk mounted at /var/data and set DATA_DIR=/var/data.

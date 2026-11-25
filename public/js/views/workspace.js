@@ -145,7 +145,7 @@ export async function overview({ el, path }) {
         <a class="tile" href="#/work/review"><div class="k">Awaiting your review</div><div class="v">${s.pending}</div><div class="s">${s.pendingWithConflicts} with a venue clash</div></a>
         <a class="tile" href="#/work/manage"><div class="k">Upcoming, published</div><div class="v">${s.upcoming}</div><div class="s">in your remit</div></a>
         <div class="tile"><div class="k">Average approval time</div><div class="v">${s.avgApprovalHours === null ? '—' : s.avgApprovalHours < 48 ? s.avgApprovalHours + 'h' : Math.round(s.avgApprovalHours / 24) + 'd'}</div><div class="s">submission to decision</div></div>
-        <div class="tile"><div class="k">Published via system</div><div class="v">${s.publishedShare}%</div><div class="s">of submitted events</div></div>
+        <div class="tile"><div class="k">Published via system</div><div class="v">${s.publishedShare === null ? '—' : s.publishedShare + '%'}</div><div class="s">of submitted events</div></div>
         <a class="tile" href="#/work/messages"><div class="k">Welcome screens live</div><div class="v">${s.liveMessages}</div><div class="s">${s.pendingMessages} awaiting approval</div></a>
       </div>
       <div class="grid2">

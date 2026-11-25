@@ -1,11 +1,12 @@
-// UZ Events — School Events Management Web System (prototype)
+// UZ Events — School Events Management Web System
 // Zero-dependency Node.js server: static frontend + JSON API.
 'use strict';
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { Store } = require('./lib/store');
-const { seed } = require('./lib/seed');
+const { seed, seedEmpty } = require('./lib/seed');
+const crypto = require('crypto');
 const A = require('./lib/auth');
 const T = require('./lib/time');
 
@@ -20,7 +21,8 @@ const UPLOAD_RE = /^\/uploads\/[a-f0-9]{32}\.(jpg|png|webp)$/;
 const SECURE_COOKIES = config.secureCookies;
 
 const store = new Store(path.join(DATA_DIR, 'db.json'));
-let db = store.load(seed);
+let freshInstall = false;
+let db = store.load(() => { freshInstall = true; return config.seedMode === 'empty' ? seedEmpty(config) : seed(); });
 const DEFAULT_SETTINGS = { heroImage: null, heroAlt: '', heroCaption: '', loginImage: null, loginAlt: '', publicUrl: '' };
 function ensureSettings() {
   db.settings = { ...DEFAULT_SETTINGS, ...(db.settings || {}) };
@@ -29,6 +31,25 @@ function ensureSettings() {
   db.outbox ||= [];
 }
 ensureSettings();
+// A new installation gets the home and sign-in photos that ship with the code (seed-photos/).
+// They are copied into the uploads folder like any upload, so admins can replace them under Site photos.
+if (freshInstall) installBundledPhotos();
+function installBundledPhotos() {
+  const dir = path.join(__dirname, 'seed-photos');
+  const manifest = path.join(dir, 'photos.json');
+  if (!fs.existsSync(manifest)) return;
+  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+  const put = file => {
+    const bytes = fs.readFileSync(path.join(dir, path.basename(file)));
+    const name = crypto.createHash('md5').update(bytes).digest('hex') + '.jpg';
+    fs.writeFileSync(path.join(UPLOAD_DIR, name), bytes);
+    return '/uploads/' + name;
+  };
+  const m = JSON.parse(fs.readFileSync(manifest, 'utf8'));
+  if (m.home) Object.assign(db.settings, { heroImage: put(m.home.file), heroAlt: m.home.alt || '', heroCaption: m.home.caption || '' });
+  if (m.signIn) Object.assign(db.settings, { loginImage: put(m.signIn.file), loginAlt: m.signIn.alt || '' });
+  store.save();
+}
 let saveTimer = null;
 function saveSoon() {
   clearTimeout(saveTimer);
@@ -349,7 +370,8 @@ route('GET', '/api/admin/outbox', ({ u }) => {
 
 route('POST', '/api/login', async ({ req, body, res }) => {
   const email = String(body.email || '').trim().toLowerCase();
-  const key = email + '|' + req.socket.remoteAddress;
+  const ip = (config.trustProxy && String(req.headers['x-forwarded-for'] || '').split(',')[0].trim()) || req.socket.remoteAddress;
+  const key = email + '|' + ip;
   if (A.throttled(key)) throw new HttpError(429, 'Too many attempts. Please wait 10 minutes and try again.');
   const u = db.users.find(x => x.email.toLowerCase() === email);
   if (!u || !u.active || !A.verifyPassword(String(body.password || ''), u.salt, u.hash)) {
@@ -647,7 +669,7 @@ route('GET', '/api/stats', ({ u }) => {
   evs.filter(e => LIVE.includes(e.status)).forEach(e => { byCategory[e.category] = (byCategory[e.category] || 0) + 1; });
   return {
     byStatus: by,
-    publishedShare: submittedEver ? Math.round(((by.published || 0) + (by.postponed || 0) + (by.cancelled || 0)) / submittedEver * 100) : 0,
+    publishedShare: submittedEver ? Math.round(((by.published || 0) + (by.postponed || 0) + (by.cancelled || 0)) / submittedEver * 100) : null,
     avgApprovalHours: avgHours === null ? null : Math.round(avgHours * 10) / 10,
     totalViews: evs.reduce((s, e) => s + (e.views || 0), 0),
     pending: pending.length,

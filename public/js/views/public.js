@@ -85,7 +85,7 @@ export async function home({ el }) {
     <figure class="hero-figure">
       <div class="frame">${st.heroImage ? html`<img src="${st.heroImage}" alt="${st.heroAlt || 'University of Zimbabwe campus'}" fetchpriority="high">` : campusArt()}</div>
       <div class="stamp"><b>${weekCount}</b><span>Events this week</span></div>
-      <figcaption>${st.heroImage ? (st.heroCaption || 'University of Zimbabwe, Mount Pleasant') : 'Illustration — approved campus photography to follow'}</figcaption>
+      <figcaption>${st.heroImage ? (st.heroCaption || 'University of Zimbabwe, Mount Pleasant') : 'University of Zimbabwe, Mount Pleasant'}</figcaption>
     </figure>
   </div></section>
 
@@ -116,12 +116,12 @@ export async function home({ el }) {
     </div>
   </div></section>` : ''}
 
-  <section class="section"><div class="wrap">
+  ${deptCounts.length ? html`<section class="section"><div class="wrap">
     <div class="section-head"><h2>Browse by faculty and office</h2><a href="#/calendar?view=list">All upcoming →</a></div>
     <div class="dept-grid">
       ${deptCounts.map(d => html`<a href="#/calendar?view=list&dept=${d.id}"><span>${d.name}<small>Next 60 days</small></span><span class="n">${d.n}</span></a>`)}
     </div>
-  </div></section>`);
+  </div></section>` : ''}`);
 
   el.querySelector('#search').onsubmit = ev => {
     ev.preventDefault();

@@ -57,7 +57,6 @@ function chrome(path) {
         <div><b>UZ Events</b><span>Staff workspace</span></div>
       </a>
       <div class="who">
-        <a class="btn ghost sm public-link" href="#/" aria-label="View public site">${icon.link}<span>View public site</span></a>
         ${me ? html`
           <span class="avatar" aria-hidden="true">${initials(me.name)}</span>
           <span class="name small"><b>${me.name}</b><br><span class="role">${me.role}</span></span>
@@ -96,7 +95,7 @@ function footer() {
       ${state.me ? html`<div><h2>Your workspace</h2><a href="#/work">Workspace</a><a href="#/work/events/new">Submit an event</a><a href="#/work/messages/new">Request a welcome message</a></div>` : html`<div><h2>Visitors</h2><a href="#/screens">Visitor welcome screens</a><a href="https://www.uz.ac.zw/" rel="noopener">University website</a></div>`}
       <div><h2>Contact</h2><p class="small">Events Office, Registrar’s Department<br>630 Churchill Avenue, Mount Pleasant, Harare</p><a href="https://www.uz.ac.zw/" rel="noopener">www.uz.ac.zw</a></div>
     </div>
-    <div class="base"><div class="wrap"><span>© ${state.meta.now.slice(0, 4)} University of Zimbabwe</span><span>Prototype · demonstration data</span></div></div>
+    <div class="base"><div class="wrap"><span>© ${state.meta.now.slice(0, 4)} University of Zimbabwe</span><span>Events Office · Registrar’s Department</span></div></div>
   </footer>`;
 }
 

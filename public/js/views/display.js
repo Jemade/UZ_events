@@ -75,6 +75,7 @@ export async function display({ el, params, onCleanup }) {
         <div class="clock"><b id="clk">${clockFmt.format(new Date())}</b><span>${D.long(data.now)}</span></div>
       </div>
       <h1 class="sr">Welcome screen: ${data.screen.name}</h1>
+      <div class="wall" aria-hidden="true"></div>
       <div class="stage ${hasPhoto() ? 'with-photo' : ''}" id="stage">${stageHtml()}</div>
       <div class="bottom">
         <h2>${data.screen.venueId ? 'Next here' : 'On campus'}</h2>

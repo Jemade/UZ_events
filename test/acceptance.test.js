@@ -180,8 +180,12 @@ test('photo backups restore missing files and reject unsafe or incomplete bundle
   const admin = await login('admin@uz.ac.zw');
   const exported = (await admin('GET', '/api/admin/export')).data;
   assert.equal(exported.version, 2);
-  const [name, encoded] = Object.entries(exported.uploads)[0];
-  assert.ok(name, 'fixture has an uploaded photo');
+  // pick a photo the data actually uses, so removing it from the bundle must be refused
+  const d = exported.data;
+  const used = [d.settings.heroImage, d.settings.loginImage, ...d.events.map(e => e.coverImage), ...d.messages.map(m => m.photo)].filter(Boolean).map(u => u.slice(9));
+  const name = Object.keys(exported.uploads).find(n => used.includes(n));
+  assert.ok(name, 'fixture has a photo in use');
+  const encoded = exported.uploads[name];
   const file = path.join(process.env.DATA_DIR, 'uploads', name);
   fs.unlinkSync(file);
   assert.equal((await fetch(base + '/uploads/' + name)).status, 404);
