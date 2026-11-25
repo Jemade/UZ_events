@@ -15,7 +15,7 @@ It has two completely separate sides:
 | Side | Who sees it | How they get there |
 |---|---|---|
 | **Public site** | Everyone: students, staff, visitors, the public | Normal navigation. No login. |
-| **Staff workspace** | Signed-in organisers, approvers and administrators only | A private sign-in address (`/#/staff`) that nothing on the public site links to |
+| **Staff workspace** | Signed-in organisers, approvers and administrators only | Reached through the one sign-in page (`/#/login`) that everyone uses |
 
 ### How the admin side is hidden from public users
 - The public header and footer have **no** "Sign in", "Workspace" or "Admin" links.
@@ -96,7 +96,7 @@ It has two completely separate sides:
 
 ### 3.2 Staff workspace (signed-in only)
 
-**Sign in (`/#/staff`):** two-panel page. Left: crest, "Sign in to UZ Events", email and password fields, navy button. Right: "Authorised staff only — Access is by invitation". Too many wrong attempts locks sign-in for 10 minutes (8 failures per email and connection).
+**Sign in (`/#/login`):** one centred form for everyone, in the style of eMhare: Username (registration number for students, email for staff) and Password. No student/staff choice: the server works out who it is, checks the password and role, and sends students to My events and staff to the Workspace. A hidden field catches bots. Too many wrong attempts locks sign-in for 10 minutes (8 failures per username and connection). **Create account** is also one form: a `students.uz.ac.zw` email makes a student account (the registration number is taken from it), any other email makes a staff account that waits for a role.
 
 **Layout:** white sidebar on the left with the user's avatar (navy circle with initials), name, role and department. The sections shown depend on role:
 - *Workspace:* Overview · My events · Submit an event · Welcome messages
@@ -331,7 +331,7 @@ npm start                       # then open http://localhost:3000
 npm test                        # run the acceptance tests
 ```
 
-- Staff sign-in address: **http://localhost:3000/#/staff** (not linked from the public site).
+- Sign-in address for everyone: **http://localhost:3000/#/login** (the site opens on it).
 - Demo password for every account: `UZevents2026`.
 
 | Email | Role |

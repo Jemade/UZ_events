@@ -376,23 +376,23 @@ const clientIp = req => (config.trustProxy && String(req.headers['x-forwarded-fo
 route('POST', '/api/signup', ({ req, body }) => {
   const key = 'signup|' + clientIp(req);
   if (A.throttled(key)) throw new HttpError(429, 'Too many new accounts from this connection. Please wait 10 minutes and try again.');
-  const kind = body.kind === 'staff' ? 'staff' : body.kind === 'student' ? 'student' : null;
-  if (!kind) throw bad('Choose student or staff.');
+  if (body.website) throw bad('Your account could not be created.'); // hidden field only bots fill in
   const name = str(body.name, 'Full name', { min: 2, max: 100, required: true });
   const email = str(body.email, 'Email', { max: 120, required: true }).toLowerCase();
   if (!EMAIL.test(email)) throw bad('Email is not valid.');
+  // The email decides the account: a students.uz.ac.zw address makes a student account
+  // (the part before @ is the registration number); any other address makes a staff account.
+  const kind = email.endsWith('@' + STUDENT_DOMAIN) ? 'student' : 'staff';
   if (!db.departments.some(d => d.id === body.department)) throw bad('Choose your faculty or department.');
   const password = String(body.password || '');
   if (password.length < 10) throw bad('Password must be at least 10 characters.');
   if (body.confirm !== undefined && String(body.confirm) !== password) throw bad('The two passwords do not match.');
   let regNumber;
   if (kind === 'student') {
-    regNumber = normReg(body.regNumber);
-    if (!REG_NUMBER.test(regNumber)) throw bad('Registration number is not valid. It starts with R followed by digits, for example R2420211.');
-    if (email !== `${regNumber}@${STUDENT_DOMAIN}`) throw bad(`Use your student email: ${regNumber}@${STUDENT_DOMAIN}. It must match your registration number.`);
+    regNumber = email.split('@')[0];
+    if (!REG_NUMBER.test(regNumber)) throw bad(`A student email starts with your registration number, for example r2420211@${STUDENT_DOMAIN}.`);
+    if (body.regNumber && normReg(body.regNumber) !== regNumber) throw bad(`Your student email must be ${normReg(body.regNumber)}@${STUDENT_DOMAIN}. It must match your registration number.`);
     if (db.users.some(x => x.regNumber === regNumber)) throw bad('An account with that registration number already exists. Sign in instead.');
-  } else if (email.endsWith('@' + STUDENT_DOMAIN)) {
-    throw bad('That is a student email. Create a student account instead.');
   }
   if (db.users.some(x => x.email.toLowerCase() === email)) throw bad('An account with that email already exists. Sign in instead.');
   A.recordFailure(key);
@@ -443,6 +443,7 @@ route('GET', '/api/admin/outbox', ({ u }) => {
 route('POST', '/api/login', async ({ req, body, res }) => {
   // One sign-in for everyone: a registration number (students) or an email address (staff and students).
   const id = String(body.login ?? body.email ?? '').trim().toLowerCase();
+  if (body.website) throw new HttpError(401, 'Username or password is incorrect.'); // hidden field only bots fill in
   const key = id + '|' + clientIp(req);
   if (A.throttled(key)) throw new HttpError(429, 'Too many attempts. Please wait 10 minutes and try again.');
   const u = REG_NUMBER.test(id) ? db.users.find(x => x.regNumber === id) : db.users.find(x => x.email.toLowerCase() === id);
@@ -450,7 +451,7 @@ route('POST', '/api/login', async ({ req, body, res }) => {
     A.recordFailure(key);
     audit(null, 'auth.failed', id.slice(0, 120));
     saveSoon();
-    throw new HttpError(401, REG_NUMBER.test(id) ? 'Registration number or password is incorrect.' : 'Email or password is incorrect.');
+    throw new HttpError(401, 'Username or password is incorrect.');
   }
   A.clearFailures(key);
   const token = A.createSession(u.id);

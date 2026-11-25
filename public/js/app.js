@@ -55,7 +55,7 @@ function chrome(path) {
   // Staff pages (sign-in and workspace) get their own header: no public menu, just who you are and the way out.
   if (path.startsWith('/work')) {
     return html`<header class="masthead staffhead"><div class="wrap">
-      <a class="brand" href="${me ? '#/work' : '#/staff'}" aria-label="UZ Events staff workspace">
+      <a class="brand" href="#/work" aria-label="UZ Events staff workspace">
         <img src="/assets/uz-crest.png" alt="University of Zimbabwe crest" width="53" height="54">
         <div><b>UZ Events</b><span>Staff workspace</span></div>
       </a>

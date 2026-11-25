@@ -736,7 +736,7 @@ export async function backups({ el, path }) {
       toast(`Restored: ${r.counts.events} events, ${r.counts.users} users. Safety copy ${r.safety}.`);
       const { refreshMe, refreshMeta } = await import('../app.js');
       await Promise.all([refreshMe(), refreshMeta()]);
-      if (!state.me) go('#/staff'); else rerender();
+      if (!state.me) go('#/login'); else rerender();
     } catch (err) { toast(err.message, true); }
   };
   main.onclick = ev => { const b = ev.target.closest('[data-name]'); if (b) restore({ name: b.dataset.name }, b.dataset.name); };

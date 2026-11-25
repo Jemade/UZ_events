@@ -246,106 +246,112 @@ export async function archive({ el, query }) {
 }
 
 // ---------------- SIGN IN AND CREATE ACCOUNT ----------------
-// Where each person lands after signing in: staff with a role go to the workspace,
-// students and staff still waiting for a role go to My events.
+// One form for everyone, like eMhare: the server works out from the username whether this is a
+// student (registration number or student email) or staff (email), checks the password and role,
+// and the page then sends each person to their own place.
 export const homeFor = me => (me && ['organiser', 'approver', 'admin'].includes(me.role) ? '/work' : '/me');
 const STUDENT_DOMAIN = 'students.uz.ac.zw';
+const REG = /^r\d{6,8}[a-z]?$/;
 
 function authShell(el, left) {
   put(el, html`<div class="login solo"><div class="pane">${left}</div></div>`);
 }
-const whoTabs = (base, as, extra = '') => html`<nav class="tabs" aria-label="Account type">
-  <a href="#${base}?as=student${extra}" class="${as === 'student' ? 'on' : ''}" ${as === 'student' ? raw('aria-current="page"') : ''}>Student</a>
-  <a href="#${base}?as=staff${extra}" class="${as === 'staff' ? 'on' : ''}" ${as === 'staff' ? raw('aria-current="page"') : ''}>Staff</a>
-</nav>`;
+// Hidden from people (and screen readers); bots that fill every field give themselves away.
+const trap = html`<div class="hp" aria-hidden="true"><label>Leave this empty<input name="website" tabindex="-1" autocomplete="off"></label></div>`;
 
-export async function login({ el, query, path }) {
+export async function login({ el, query }) {
   if (state.me) { go('#' + homeFor(state.me)); return; }
-  const as = query.as === 'staff' || (path === '/staff' && query.as !== 'student') ? 'staff' : 'student';
-  const student = as === 'student';
   authShell(el, html`
       <img src="/assets/uz-crest.png" alt="University of Zimbabwe crest" width="82" height="84">
-      <h1>Sign in</h1>
-      <p class="muted" style="margin-bottom:18px">${student ? 'Students sign in with their registration number.' : 'Staff sign in with the email address they registered with.'}</p>
-      ${whoTabs('/login', as)}
-      ${query.created ? html`<div class="banner info" role="status"><b>Account created.</b><p>${student ? 'Sign in with your registration number and password.' : 'Sign in with your email and password. An administrator will give you a role.'}</p></div>` : ''}
+      <h1>Welcome to UZ Events</h1>
+      <p class="muted" style="margin-bottom:22px">Sign in to see university events.</p>
+      ${query.created ? html`<div class="banner info" role="status"><b>Account created.</b><p>Sign in with your ${query.reg ? `registration number (${query.reg})` : 'email'} and password.</p></div>` : ''}
       <form id="lf" novalidate>
         <div id="err"></div>
-        ${student
-          ? html`<label class="field"><span>Registration number</span><input class="input" name="login" autocomplete="username" autocapitalize="characters" spellcheck="false" placeholder="For example R2420211" value="${query.reg || ''}" required></label>`
-          : html`<label class="field"><span>Email</span><input class="input" type="email" name="login" autocomplete="username" value="${query.email || ''}" required></label>`}
-        <label class="field"><span>Password</span><input class="input" type="password" name="password" autocomplete="current-password" required></label>
+        <label class="field"><span>Username</span><input class="input" name="login" autocomplete="username" spellcheck="false" autocapitalize="none" placeholder="Registration number or email" value="${query.reg || query.email || ''}" required><small>Students: your registration number, e.g. R2420211. Staff: your email.</small></label>
+        <label class="field"><span>Password</span><input class="input" type="password" name="password" autocomplete="current-password" placeholder="Enter your password" required></label>
+        ${trap}
         <button class="btn" style="width:100%;height:48px">Sign in</button>
       </form>
-      <p class="small" style="margin-top:18px">No account yet? <a href="#/signup?as=${as}">Create ${student ? 'a student' : 'a staff'} account</a></p>`);
+      <div class="auth-links small">
+        <span>No account yet? <a href="#/signup">Create an account</a></span>
+        <a href="#" id="forgot">Forgot your password?</a>
+      </div>
+      <p class="small muted" id="forgotMsg" hidden>Ask the Events Office (Registrar’s Department) to reset your password. You will get a temporary password to sign in with.</p>`);
   const form = el.querySelector('#lf');
-  form.login.focus();
+  if (query.created) form.password.focus(); else form.login.focus();
+  el.querySelector('#forgot').onclick = ev => { ev.preventDefault(); el.querySelector('#forgotMsg').hidden = false; };
   form.onsubmit = async ev => {
     ev.preventDefault();
     const err = el.querySelector('#err');
     const value = form.login.value.trim();
-    if (!value || !form.password.value) { err.innerHTML = String(html`<div class="error" role="alert">Enter your ${student ? 'registration number' : 'email'} and password.</div>`); return; }
+    if (!value || !form.password.value) { err.innerHTML = String(html`<div class="error" role="alert">Enter your username and password.</div>`); return; }
+    const btn = form.querySelector('button');
+    btn.disabled = true; btn.textContent = 'Signing in…';
     try {
-      await api('/api/login', { method: 'POST', body: { login: value, password: form.password.value } });
+      await api('/api/login', { method: 'POST', body: { login: value, password: form.password.value, website: form.website.value } });
       await refreshMe();
       toast(`Welcome, ${state.me.name}.`);
       const dest = homeFor(state.me);
       const next = query.next && query.next.startsWith('/') && (dest === '/work' || !query.next.startsWith('/work')) ? query.next : dest;
       if (location.hash === '#' + next) render(); else go('#' + next);
     } catch (x) {
+      btn.disabled = false; btn.textContent = 'Sign in';
       err.innerHTML = String(html`<div class="error" role="alert">${x.message}</div>`);
     }
   };
 }
 
-export async function signup({ el, query }) {
+export async function signup({ el }) {
   if (state.me) { go('#' + homeFor(state.me)); return; }
-  const as = query.as === 'staff' ? 'staff' : 'student';
-  const student = as === 'student';
-  const depts = state.meta.departments.filter(d => student ? !['reg', 'vc'].includes(d.id) : true);
   authShell(el, html`
       <img src="/assets/uz-crest.png" alt="University of Zimbabwe crest" width="82" height="84">
       <h1>Create an account</h1>
-      <p class="muted" style="margin-bottom:18px">${student ? 'Use your registration number and your student email.' : 'Use your own email address for now. An administrator gives staff their role.'}</p>
-      ${whoTabs('/signup', as)}
+      <p class="muted" style="margin-bottom:22px">Students use their student email. Staff use their own email.</p>
       <form id="sf" novalidate>
         <div id="err"></div>
         <label class="field"><span>Full name</span><input class="input" name="name" autocomplete="name" required></label>
-        ${student ? html`
-          <label class="field"><span>Registration number</span><input class="input" name="regNumber" autocapitalize="characters" spellcheck="false" placeholder="For example R2420211" required></label>
-          <label class="field"><span>Student email</span><input class="input" type="email" name="email" autocomplete="email" placeholder="r2420211@${STUDENT_DOMAIN}" required><small id="emailHint">Your registration number followed by @${STUDENT_DOMAIN}</small></label>`
-        : html`<label class="field"><span>Email</span><input class="input" type="email" name="email" autocomplete="email" required></label>`}
-        <label class="field"><span>${student ? 'Faculty' : 'Department'}</span><select class="input" name="department" required><option value="">Choose…</option>${depts.map(d => html`<option value="${d.id}">${d.name}</option>`)}</select></label>
+        <label class="field"><span>Email</span><input class="input" type="email" name="email" autocomplete="email" spellcheck="false" placeholder="e.g. r2420211@${STUDENT_DOMAIN}" required aria-describedby="kindHint"><small id="kindHint" aria-live="polite">Your account type is worked out from your email.</small></label>
+        <label class="field"><span>Faculty or department</span><select class="input" name="department" required><option value="">Choose…</option>${state.meta.departments.map(d => html`<option value="${d.id}">${d.name}</option>`)}</select></label>
         <label class="field"><span>Password</span><input class="input" type="password" name="password" minlength="10" autocomplete="new-password" required><small>At least 10 characters.</small></label>
         <label class="field"><span>Confirm password</span><input class="input" type="password" name="confirm" minlength="10" autocomplete="new-password" required></label>
+        ${trap}
         <button class="btn" style="width:100%;height:48px">Create account</button>
       </form>
-      <p class="small" style="margin-top:18px">Already have an account? <a href="#/login?as=${as}">Sign in</a></p>`);
+      <div class="auth-links small"><span>Already have an account? <a href="#/login">Sign in</a></span></div>`);
   const form = el.querySelector('#sf');
   const err = el.querySelector('#err');
+  const hint = el.querySelector('#kindHint');
   const fail = msg => { err.innerHTML = String(html`<div class="error" role="alert">${msg}</div>`); err.scrollIntoView({ block: 'nearest' }); };
-  if (student) {
-    // Fill in the student email from the registration number, as long as the student has not typed their own.
-    let typed = false;
-    form.email.oninput = () => { typed = true; };
-    form.regNumber.oninput = () => { if (!typed) form.email.value = form.regNumber.value.trim() ? form.regNumber.value.trim().toLowerCase() + '@' + STUDENT_DOMAIN : ''; };
-  }
+  // Tell people, as they type, what kind of account their email will make.
+  const kindOf = email => {
+    const e = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) return null;
+    if (!e.endsWith('@' + STUDENT_DOMAIN)) return { kind: 'staff' };
+    const reg = e.split('@')[0];
+    return REG.test(reg) ? { kind: 'student', reg: reg.toUpperCase() } : { kind: 'bad' };
+  };
+  form.email.oninput = () => {
+    const k = kindOf(form.email.value);
+    hint.textContent = !k ? 'Your account type is worked out from your email.'
+      : k.kind === 'student' ? `Student account. You will sign in with registration number ${k.reg}.`
+      : k.kind === 'staff' ? 'Staff account. An administrator will give you a role after you sign up.'
+      : `A student email starts with your registration number, e.g. r2420211@${STUDENT_DOMAIN}.`;
+  };
   form.onsubmit = async ev => {
     ev.preventDefault();
-    const body = { kind: as, ...Object.fromEntries(new FormData(form)) };
+    const body = Object.fromEntries(new FormData(form));
+    const k = kindOf(body.email);
     if (body.name.trim().length < 2) return fail('Enter your full name.');
-    if (student) {
-      const reg = body.regNumber.trim().toLowerCase();
-      if (!/^r\d{6,8}[a-z]?$/.test(reg)) return fail('Registration number is not valid. It starts with R followed by digits, for example R2420211.');
-      if (body.email.trim().toLowerCase() !== `${reg}@${STUDENT_DOMAIN}`) return fail(`Your student email must be ${reg}@${STUDENT_DOMAIN}.`);
-    }
-    if (!body.department) return fail(`Choose your ${student ? 'faculty' : 'department'}.`);
+    if (!k) return fail('Enter a valid email address.');
+    if (k.kind === 'bad') return fail(`A student email starts with your registration number, e.g. r2420211@${STUDENT_DOMAIN}.`);
+    if (!body.department) return fail('Choose your faculty or department.');
     if (body.password.length < 10) return fail('Password must be at least 10 characters.');
     if (body.password !== body.confirm) return fail('The two passwords do not match.');
     try {
       const r = await api('/api/signup', { method: 'POST', body });
       toast('Account created. Please sign in.');
-      go('#/login' + qs(student ? { as, created: 1, reg: r.user.regNumber } : { as, created: 1, email: r.user.email }));
+      go('#/login' + qs(r.user.regNumber ? { created: 1, reg: r.user.regNumber } : { created: 1, email: r.user.email }));
     } catch (x) { fail(x.message); }
   };
 }

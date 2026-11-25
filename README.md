@@ -16,8 +16,8 @@ Built by Jayden Mapasure and Nyasha Madoro.
 
 ## Accounts and roles
 
-- **Students** choose **Create account → Student** and enter their registration number (for example `R2420211`, any case) and their student email. The email must be that number at `students.uz.ac.zw` (`r2420211@students.uz.ac.zw`), otherwise the account is refused. They sign in with the registration number and land on **My events**: saved events and what their faculty has coming up.
-- **Staff** choose **Create account → Staff** and use their own email. They start with no role and land on **My events** with a notice. The administrator is notified and gives them a role under **Users and roles → Waiting for a role**.
+- **One sign-in form for everyone**, like eMhare: **Username** and **Password**, with no student/staff choice. Students type their registration number (for example `R2420211`, any case) or student email; staff type their email. The server works out who it is and where they go.
+- **Create account** is one form too. The email decides the account: `r2420211@students.uz.ac.zw` makes a student account with registration number R2420211 (the part before @ must be a registration number); any other email makes a staff account. Students land on **My events**. Staff start with no role, see a notice on My events, and the administrator is notified to give them a role under **Users and roles → Waiting for a role**.
 - **Organisers, approvers and administrators** land in the **Workspace** and see only the screens their role allows. Student accounts can never be given a staff role. Internal events are shown to staff accounts only.
 
 The student email check confirms that the email and the registration number belong together. It does not yet send a code to the inbox, because email delivery is not connected (see the outbox under Workspace).

@@ -780,3 +780,7 @@ label.btn:focus-within { outline: 3px solid var(--navy); outline-offset: 3px; }
 .login.solo form { max-width: none; }
 .login.solo .pane > img { width: 72px; margin-bottom: 18px; }
 @media (max-width: 560px) { .login.solo .pane { margin: 0; padding: 28px 20px; border-left: 0; border-right: 0; border-radius: 0; } }
+
+.auth-links { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 16px; margin-top: 18px; }
+#forgotMsg { margin-top: 12px; }
+.hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
