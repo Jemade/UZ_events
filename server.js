@@ -23,7 +23,12 @@ const SECURE_COOKIES = config.secureCookies;
 const store = new Store(path.join(DATA_DIR, 'db.json'));
 let freshInstall = false;
 let db = store.load(() => { freshInstall = true; return config.seedMode === 'empty' ? seedEmpty(config) : seed(); });
-const DEFAULT_SETTINGS = { heroImage: null, heroAlt: '', heroCaption: '', loginImage: null, loginAlt: '', publicUrl: '' };
+// One photo per page. Manifest key in seed-photos/photos.json -> settings prefix (<prefix>Image, <prefix>Alt).
+const PAGE_PHOTOS = { home: 'hero', signIn: 'login', staffSignIn: 'staffLogin', signUp: 'signup', myEvents: 'me', archive: 'archive', workspace: 'work' };
+const PAGE_PHOTO_LABELS = { hero: 'Home page photo', login: 'Student sign-in photo', staffLogin: 'Staff sign-in photo', signup: 'Create account photo', me: 'My events photo', archive: 'Archive photo', work: 'Workspace photo' };
+const DEFAULT_SETTINGS = { heroCaption: '', publicUrl: '', ...Object.fromEntries(Object.values(PAGE_PHOTOS).flatMap(k => [[k + 'Image', null], [k + 'Alt', '']])) };
+// Page photos an existing installation has never had (added in a later version); they are filled from seed-photos below.
+const missingPhotos = Object.keys(PAGE_PHOTOS).filter(k => !(PAGE_PHOTOS[k] + 'Image' in (db.settings || {})));
 function ensureSettings() {
   db.settings = { ...DEFAULT_SETTINGS, ...(db.settings || {}) };
   if (config.publicUrl) db.settings.publicUrl = config.publicUrl;
@@ -33,8 +38,9 @@ function ensureSettings() {
 ensureSettings();
 // A new installation gets the home and sign-in photos that ship with the code (seed-photos/).
 // They are copied into the uploads folder like any upload, so admins can replace them under Site photos.
-if (freshInstall) installBundledPhotos();
-function installBundledPhotos() {
+if (freshInstall) installBundledPhotos(Object.keys(PAGE_PHOTOS));
+else if (missingPhotos.length) installBundledPhotos(missingPhotos);
+function installBundledPhotos(only) {
   const dir = path.join(__dirname, 'seed-photos');
   const manifest = path.join(dir, 'photos.json');
   if (!fs.existsSync(manifest)) return;
@@ -46,8 +52,12 @@ function installBundledPhotos() {
     return '/uploads/' + name;
   };
   const m = JSON.parse(fs.readFileSync(manifest, 'utf8'));
-  if (m.home) Object.assign(db.settings, { heroImage: put(m.home.file), heroAlt: m.home.alt || '', heroCaption: m.home.caption || '' });
-  if (m.signIn) Object.assign(db.settings, { loginImage: put(m.signIn.file), loginAlt: m.signIn.alt || '' });
+  for (const key of only) {
+    const entry = m[key], prefix = PAGE_PHOTOS[key];
+    if (!entry || !prefix) continue;
+    Object.assign(db.settings, { [prefix + 'Image']: put(entry.file), [prefix + 'Alt']: entry.alt || '' });
+    if (key === 'home') db.settings.heroCaption = entry.caption || '';
+  }
   store.save();
 }
 let saveTimer = null;
@@ -897,11 +907,13 @@ route('POST', '/api/uploads', ({ u, body }) => {
 route('PUT', '/api/settings', ({ u, body }) => {
   need(u, 'admin');
   const s = {
-    heroImage: image(body.heroImage, 'Home page photo'), heroAlt: str(body.heroAlt, 'Home photo description', { max: 140 }),
     heroCaption: str(body.heroCaption, 'Home photo caption', { max: 140 }),
-    loginImage: image(body.loginImage, 'Sign-in photo'), loginAlt: str(body.loginAlt, 'Sign-in photo description', { max: 140 }),
     publicUrl: str(body.publicUrl, 'Public address', { max: 200 }).replace(/\/+$/, ''),
   };
+  for (const [k, label] of Object.entries(PAGE_PHOTO_LABELS)) {
+    s[k + 'Image'] = image(body[k + 'Image'], label);
+    s[k + 'Alt'] = str(body[k + 'Alt'], label + ' description', { max: 140 });
+  }
   if (s.publicUrl && !/^https?:\/\/[^\s/]+(\/[^\s]*)?$/.test(s.publicUrl)) throw bad('Public address must start with http:// or https://');
   if (config.publicUrl) s.publicUrl = config.publicUrl;
   db.settings = s;

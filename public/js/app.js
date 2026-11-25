@@ -87,6 +87,7 @@ function chrome(path) {
       <a href="#/" class="${on('/')}">What’s on</a>
       <a href="#/calendar" class="${on('/calendar')}">Calendar</a>
       <a href="#/archive" class="${on('/archive')}">Archive</a>
+      <button type="button" class="nav-signout" data-logout>Sign out</button>
     </nav>
     <div class="who">
       ${me ? html`
@@ -174,14 +175,13 @@ function wireChrome() {
     nav.classList.toggle('open');
     btn.setAttribute('aria-expanded', nav.classList.contains('open'));
   };
-  const lo = document.getElementById('logoutBtn');
-  if (lo) lo.onclick = async () => {
+  document.querySelectorAll('#logoutBtn, [data-logout]').forEach(lo => lo.onclick = async () => {
     await api('/api/logout', { method: 'POST', body: {} });
     state.me = null;
     toast('You have been signed out.');
     go('#/login');
     render();
-  };
+  });
 }
 
 export async function refreshMe() {

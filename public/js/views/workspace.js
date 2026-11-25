@@ -183,7 +183,9 @@ export async function overview({ el, path }) {
         </div>
       </div></section>`;
   }
-  const main = await layout(el, path, html`${head(`${greet}, ${me.name.split(' ').filter(w => !/^(Dr|Prof)$/.test(w))[0]}`, `${me.role[0].toUpperCase() + me.role.slice(1)} · ${deptName(me.department)}`, html`<a class="btn" href="#/work/events/new">${icon.plus} Submit an event</a>`)}${body}
+  const st = state.meta.settings || {};
+  const banner = st.workImage ? html`<figure class="work-photo"><img src="${st.workImage}" alt="${st.workAlt || 'University of Zimbabwe campus'}" decoding="async"></figure>` : '';
+  const main = await layout(el, path, html`${banner}${head(`${greet}, ${me.name.split(' ').filter(w => !/^(Dr|Prof)$/.test(w))[0]}`, `${me.role[0].toUpperCase() + me.role.slice(1)} · ${deptName(me.department)}`, html`<a class="btn" href="#/work/events/new">${icon.plus} Submit an event</a>`)}${body}
     <section class="panel" aria-labelledby="updates-title"><header><h2 id="updates-title">Your updates</h2><span>${updates.unread} unread</span></header>
       <div class="pad">${updates.updates.length ? html`<ul class="updates-list">${updates.updates.map(n => html`<li>${!n.readAt ? html`<strong>New · </strong>` : ''}<a href="${n.href}">${n.message}</a><br><small class="muted">${D.stamp(n.at)}</small></li>`)}</ul>
       ${updates.updates.some(n => !n.readAt) ? html`<button class="btn ghost sm" id="readUpdates">Mark these updates as read</button>` : ''}` : html`<p class="muted">Decisions about your events and welcome messages will appear here.</p>`}</div>
@@ -750,22 +752,28 @@ export async function backups({ el, path }) {
 // ---------------- SITE PHOTOS (admin) ----------------
 export async function sitePhotos({ el, path }) {
   const st = state.meta.settings || {};
+  // Every page has its own photo. Use only photography the university has the right to publish.
+  const PAGES = [
+    ['hero', 'Home page', 'Beside the headline on What’s on. Landscape, at least 1600px wide.'],
+    ['login', 'Sign in: student tab', 'Right-hand side of the sign-in page.'],
+    ['staffLogin', 'Sign in: staff tab', 'Right-hand side of the sign-in page when Staff is chosen.'],
+    ['signup', 'Create account', 'Right-hand side of the create account page.'],
+    ['me', 'My events', 'Top of the students’ My events page.'],
+    ['archive', 'Events archive', 'Top of the archive page.'],
+    ['work', 'Staff workspace', 'Banner across the top of the workspace overview.'],
+  ];
   const main = await layout(el, path, html`
-    ${head('Site photos and address', 'Photographs give the public site its character. Use only approved UZ photography that the university has the right to publish.')}
+    ${head('Site photos and address', 'Each page has its own campus photo. Use only approved UZ photography that the university has the right to publish.')}
     <form id="sf">
       <div class="settings-grid">
-        <section class="panel"><header><h2>Home page photo</h2></header><div class="pad">
-          ${photoField({ name: 'heroImage', value: st.heroImage, label: 'Photo beside the headline', help: 'Landscape, at least 1600px wide. Shown at 4:3 on desktop.', fallback: campusArt() })}
-          <label class="field"><span>Describe the photo</span><input class="input" name="heroAlt" maxlength="140" value="${st.heroAlt || ''}" placeholder="e.g. The Great Hall at sunrise"></label>
-          <label class="field"><span>Caption</span><input class="input" name="heroCaption" maxlength="140" value="${st.heroCaption || ''}" placeholder="e.g. The Great Hall, Mount Pleasant campus"></label>
-        </div></section>
-        <section class="panel"><header><h2>Staff sign-in photo</h2></header><div class="pad">
-          ${photoField({ name: 'loginImage', value: st.loginImage, label: 'Photo on the sign-in page', help: 'Landscape. Only staff who know the sign-in address see it.', fallback: campusArt() })}
-          <label class="field"><span>Describe the photo</span><input class="input" name="loginAlt" maxlength="140" value="${st.loginAlt || ''}"></label>
-        </div></section>
+        ${PAGES.map(([k, title, help]) => html`<section class="panel"><header><h2>${title}</h2></header><div class="pad">
+          ${photoField({ name: k + 'Image', value: st[k + 'Image'], label: `${title} photo`, help, fallback: campusArt() })}
+          <label class="field"><span>Describe the photo</span><input class="input" name="${k}Alt" maxlength="140" value="${st[k + 'Alt'] || ''}" placeholder="e.g. The Great Hall at sunrise"></label>
+          ${k === 'hero' ? html`<label class="field"><span>Caption</span><input class="input" name="heroCaption" maxlength="140" value="${st.heroCaption || ''}" placeholder="e.g. The Great Hall, Mount Pleasant campus"></label>` : ''}
+        </div></section>`)}
       </div>
       <section class="panel"><header><h2>Public web address</h2></header><div class="pad">
-        <label class="field"><span>Address used in QR codes on visitor screens</span><input class="input" name="publicUrl" value="${st.publicUrl || ''}" placeholder="https://events.uz.ac.zw"><small>Leave empty to use the address the screen was opened with (${location.origin}).</small></label>
+        <label class="field"><span>Address used in QR codes on lobby screens</span><input class="input" name="publicUrl" value="${st.publicUrl || ''}" placeholder="https://events.uz.ac.zw"><small>Leave empty to use the address the screen was opened with (${location.origin}).</small></label>
       </div></section>
       <button class="btn">${ico('check')} Save site settings</button>
     </form>`);
@@ -776,7 +784,7 @@ export async function sitePhotos({ el, path }) {
       await api('/api/settings', { method: 'PUT', body: Object.fromEntries(new FormData(ev.target)) });
       const { refreshMeta } = await import('../app.js');
       await refreshMeta();
-      toast('Saved. The public site now uses these photos.');
+      toast('Saved. Each page now uses its photo.');
       rerender();
     } catch (err) { toast(err.message, true); }
   };

@@ -5,6 +5,12 @@ import { state, go, today, render, refreshMe, can } from '../app.js';
 const put = (el, tpl) => { el.innerHTML = String(tpl); };
 const evHref = e => `#/event/${e.id}${e.occurrence ? '?on=' + encodeURIComponent(e.start) : ''}`;
 
+// The page's own campus photo (each page has a different one; admins change them under Site photos).
+export const pagePhoto = prefix => {
+  const st = state.meta.settings || {};
+  return st[prefix + 'Image'] ? html`<figure class="page-photo"><img src="${st[prefix + 'Image']}" alt="${st[prefix + 'Alt'] || 'University of Zimbabwe campus'}" decoding="async"></figure>` : '';
+};
+
 // Event photo, or the category artwork when no photo has been supplied
 export const photo = (e, cls = '') => e.coverImage
   ? html`<img class="${cls}" src="${e.coverImage}" alt="${e.coverAlt || ''}" loading="lazy" decoding="async">`
@@ -220,10 +226,13 @@ export async function archive({ el, query }) {
   past.forEach(e => { const k = e.start.slice(0, 7); if (!byMonth.has(k)) byMonth.set(k, []); byMonth.get(k).push(e); });
   const thisYear = Number(t.slice(0, 4));
   put(el, html`
-  <div class="page-head"><div class="wrap">
-    <div class="crumbs"><a href="#/">What’s on</a> / Archive</div>
-    <h1>Events archive</h1>
-    <p class="muted" style="margin-top:8px">A permanent record of completed university events, including recurring series.</p>
+  <div class="page-head ${pagePhoto('archive') ? 'has-photo' : ''}"><div class="wrap">
+    <div>
+      <div class="crumbs"><a href="#/">What’s on</a> / Archive</div>
+      <h1>Events archive</h1>
+      <p class="muted" style="margin-top:8px">A permanent record of completed university events, including recurring series.</p>
+    </div>
+    ${pagePhoto('archive')}
   </div></div>
   <div class="wrap" style="padding-top:22px">
     <form class="cal-filters" id="f">
@@ -249,11 +258,13 @@ export async function archive({ el, query }) {
 export const homeFor = me => (me && ['organiser', 'approver', 'admin'].includes(me.role) ? '/work' : '/me');
 const STUDENT_DOMAIN = 'students.uz.ac.zw';
 
-function authShell(el, st, left, rightTitle, rightText) {
+function authShell(el, st, prefix, left, rightTitle, rightText) {
+  const img = st[prefix + 'Image'] || st.loginImage;
+  const alt = st[prefix + 'Image'] ? st[prefix + 'Alt'] : st.loginAlt;
   put(el, html`<div class="login">
     <div class="pane left">${left}</div>
     <div class="right">
-      <div class="ph">${st.loginImage ? html`<img src="${st.loginImage}" alt="${st.loginAlt || 'University of Zimbabwe campus'}">` : campusArt()}</div>
+      <div class="ph">${img ? html`<img src="${img}" alt="${alt || 'University of Zimbabwe campus'}">` : campusArt()}</div>
       <div class="txt">
         <div class="eyebrow">UZ Events</div>
         <h2 style="margin:8px 0 8px">${rightTitle}</h2>
@@ -272,7 +283,7 @@ export async function login({ el, query, path }) {
   const as = query.as === 'staff' || (path === '/staff' && query.as !== 'student') ? 'staff' : 'student';
   const st = state.meta.settings || {};
   const student = as === 'student';
-  authShell(el, st, html`
+  authShell(el, st, student ? 'login' : 'staffLogin', html`
       <img src="/assets/uz-crest.png" alt="University of Zimbabwe crest" width="82" height="84">
       <h1>Sign in</h1>
       <p class="muted" style="margin-bottom:18px">${student ? 'Students sign in with their registration number.' : 'Staff sign in with the email address they registered with.'}</p>
@@ -316,7 +327,7 @@ export async function signup({ el, query }) {
   const student = as === 'student';
   const st = state.meta.settings || {};
   const depts = state.meta.departments.filter(d => student ? !['reg', 'vc'].includes(d.id) : true);
-  authShell(el, st, html`
+  authShell(el, st, 'signup', html`
       <img src="/assets/uz-crest.png" alt="University of Zimbabwe crest" width="82" height="84">
       <h1>Create an account</h1>
       <p class="muted" style="margin-bottom:18px">${student ? 'Use your registration number and your student email.' : 'Use your own email address for now. An administrator gives staff their role.'}</p>
@@ -382,10 +393,13 @@ export async function myEvents({ el }) {
   const waiting = me.role === 'staff';
   document.title = 'My events · UZ Events';
   put(el, html`
-  <div class="page-head"><div class="wrap">
-    <div class="eyebrow">${waiting ? 'Staff' : 'Student'}${me.regNumber ? ` · ${me.regNumber}` : ''}</div>
-    <h1 style="margin-top:8px">Welcome, ${me.name.split(' ')[0]}</h1>
-    <p class="muted" style="margin:6px 0 0">${dept ? dept.name : ''}</p>
+  <div class="page-head ${pagePhoto('me') ? 'has-photo' : ''}"><div class="wrap">
+    <div>
+      <div class="eyebrow">${waiting ? 'Staff' : 'Student'}${me.regNumber ? ` · ${me.regNumber}` : ''}</div>
+      <h1 style="margin-top:8px">Welcome, ${me.name.split(' ')[0]}</h1>
+      <p class="muted" style="margin:6px 0 0">${dept ? dept.name : ''}</p>
+    </div>
+    ${pagePhoto('me')}
   </div></div>
   <div class="wrap" style="padding-top:28px;padding-bottom:56px">
     ${waiting ? html`<div class="banner info" role="status"><b>Your account is waiting for a role.</b><p>An administrator will make you an organiser, approver or administrator. Once they have, reload this page and your workspace opens. Until then you can browse and save events.</p></div>` : ''}
